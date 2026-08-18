@@ -7,6 +7,12 @@ dist/
 out/
 build/
 
+# Temporary media test downloads & binaries
+backend/tmp/
+*.part
+*.m4a
+*.webm
+
 # Local Environment Variables
 .env
 .env.local
