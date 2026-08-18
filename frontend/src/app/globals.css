@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #0f172a;
+}
+
+html, body {
+  min-height: 100vh;
+  width: 100vw;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  color: var(--foreground);
+  background: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", sans-serif;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Continuous Infinite Marquee Animation for 3D Media Cards */
+@keyframes infiniteMarquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee-stream {
+  display: flex;
+  width: max-content;
+  animation: infiniteMarquee 26s linear infinite;
+}
+
+.animate-marquee-stream:hover {
+  animation-play-state: paused;
+}
+
+/* Apple Studio Text Gradients */
+.gradient-text-apple {
+  background: linear-gradient(135deg, #0071e3 0%, #475569 50%, #0077ed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-text-blue-purple {
+  background: linear-gradient(135deg, #0071e3 0%, #5e5ce6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gradient-text-videodl-1 {
+  background: linear-gradient(135deg, #2563eb 0%, #3b82f6 40%, #ec4899 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Apple Minimalist Studio Cards */
+.card-apple {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb;
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.card-apple:hover {
+  border-color: #d1d5db;
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.08);
+}
+
+/* Apple Studio Primary Button */
+.btn-apple {
+  background: #0071e3;
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 9999px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 14px rgba(0, 113, 227, 0.25);
+}
+
+.btn-apple:hover {
+  background: #0077ed;
+  box-shadow: 0 6px 20px rgba(0, 113, 227, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-apple:active {
+  transform: translateY(0);
+}
+
+.btn-apple-dark {
+  background: #0f172a;
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 9999px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2);
+}
+
+.btn-apple-dark:hover {
+  background: #1e293b;
+  transform: translateY(-1px);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #ffffff;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #cbd5e1;
+}

@@ -1,0 +1,64 @@
+export type PlatformType = 'youtube' | 'instagram' | 'unknown';
+
+export interface QualityFormat {
+  quality: string;
+  height: number;
+  format: string;
+  formatId: string;
+  hasVideo: boolean;
+  hasAudio: boolean;
+  needsMerge: boolean;
+  filesizeApprox?: number;
+  fps?: number;
+}
+
+export interface MediaAnalysisResponse {
+  success: boolean;
+  url: string;
+  platform: PlatformType;
+  title: string;
+  thumbnail: string;
+  duration: number;
+  maxAvailableQuality: string;
+  formats: QualityFormat[];
+  error?: string;
+}
+
+export interface CreateDownloadResponse {
+  success: boolean;
+  jobId: string;
+  message?: string;
+  error?: string;
+}
+
+export type JobStatus =
+  | 'queued'
+  | 'processing'
+  | 'merging'
+  | 'completed'
+  | 'failed';
+
+export interface JobStatusResponse {
+  success: boolean;
+  jobId: string;
+  status: JobStatus;
+  progress: number;
+  title?: string;
+  quality: string;
+  format: string;
+  fileSize?: number;
+  downloadUrl?: string | null;
+  error?: string | null;
+  completedAt?: string;
+  expiresAt?: string;
+}
+
+export interface HistoryItem {
+  id: string;
+  url: string;
+  platform: PlatformType;
+  title: string;
+  thumbnail: string;
+  quality: string;
+  downloadedAt: string;
+}
