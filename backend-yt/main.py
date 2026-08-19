@@ -71,11 +71,21 @@ def extract_video(req: VideoRequest):
     if cookies_env:
         try:
             cleaned = cookies_env.replace('\\n', '\n').strip('"\'')
-            if '# Netscape' not in cleaned:
-                cleaned = "# Netscape HTTP Cookie File\n" + cleaned
+            lines = []
+            for line in cleaned.splitlines():
+                l_str = line.strip()
+                if l_str.startswith('#') or not l_str:
+                    lines.append(l_str)
+                else:
+                    parts = l_str.split()
+                    if len(parts) >= 6:
+                        lines.append('\t'.join(parts))
+                    else:
+                        lines.append(l_str)
+            formatted = "# Netscape HTTP Cookie File\n" + '\n'.join(lines)
             cookie_path = "/tmp/youtube_cookies.txt"
             with open(cookie_path, "w", encoding="utf-8") as f:
-                f.write(cleaned)
+                f.write(formatted)
         except Exception:
             cookie_path = None
 
