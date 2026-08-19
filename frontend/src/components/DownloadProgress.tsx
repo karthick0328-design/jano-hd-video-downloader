@@ -46,54 +46,21 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       setDownloadError(null);
 
       const targetUrl = getFullDownloadUrl(job.downloadUrl);
-      console.log('[FRONTEND_DOWNLOAD_FETCH] Fetching download URL:', targetUrl);
+      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Triggering direct browser download:', targetUrl);
 
-      const res = await fetch(targetUrl);
-
-      if (!res.ok) {
-        let errText = 'Server returned an error while retrieving the video.';
-        try {
-          const errData = await res.json();
-          if (errData?.error) errText = errData.error;
-        } catch (e) {}
-        throw new Error(errText);
-      }
-
-      const contentType = res.headers.get('content-type') || '';
-      console.log('[FRONTEND_DOWNLOAD_FETCH] Content-Type:', contentType, 'Status:', res.status);
-
-      if (contentType.includes('json') || contentType.includes('html') || contentType.includes('text/plain')) {
-        throw new Error('Received invalid non-video response from server. Download aborted.');
-      }
-
-      const blob = await res.blob();
-      if (!blob || blob.size === 0) {
-        throw new Error('Downloaded file stream is empty (0 bytes). Download aborted.');
-      }
-
-      console.log('[FRONTEND_DOWNLOAD_FETCH] Blob size:', blob.size, 'bytes');
-
-      const cleanTitle = (job.title || 'Video')
-        .replace(/[^a-zA-Z0-9_-]/g, '_')
-        .replace(/_+/g, '_')
-        .replace(/^_+|_+$/g, '')
-        .substring(0, 40);
-      const safeFilename = `JANO_HD_${cleanTitle || 'Video'}_${job.quality || '1080p'}.mp4`;
-
-      const blobUrl = window.URL.createObjectURL(blob);
+      // Trigger direct top-level browser download (immune to CORS preflight & 302 redirect blocks)
       const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = safeFilename;
+      link.href = targetUrl;
+      link.setAttribute('download', '');
+      link.target = '_self';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
     } catch (err: any) {
       console.error('[FRONTEND_DOWNLOAD_ERROR]', err);
       setDownloadError(err.message || 'Failed to download video file.');
     } finally {
-      setDownloading(false);
+      setTimeout(() => setDownloading(false), 2000);
     }
   };
 
