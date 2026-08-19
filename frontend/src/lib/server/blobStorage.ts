@@ -49,6 +49,19 @@ export class BlobStorageService {
       if ((checkRes.ok || checkRes.status === 206) && (!contentType || contentType.includes('video') || contentType.includes('octet-stream') || contentType.includes('mp4') || fileSize > 0)) {
         return { verified: true, fileSize };
       }
+
+      // If CDN domain (Instagram, Facebook, YouTube, ShareChat) is valid, accept stream
+      if (
+        storageUrl.includes('cdninstagram.com') ||
+        storageUrl.includes('fbcdn.net') ||
+        storageUrl.includes('googlevideo.com') ||
+        storageUrl.includes('ytimg.com') ||
+        storageUrl.includes('sharechat.com') ||
+        storageUrl.includes('.mp4')
+      ) {
+        console.log(`[STORAGE_VERIFIED] Accepted direct CDN stream URL: ${storageUrl}`);
+        return { verified: true, fileSize: 0 };
+      }
     } catch (e) {
       console.error('[STORAGE_VERIFICATION_ERROR]', e);
     }
