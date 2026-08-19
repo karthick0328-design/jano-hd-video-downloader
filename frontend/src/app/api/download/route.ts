@@ -39,6 +39,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // If media stream could not be extracted directly by Invidious/scrapers, fallback to normalizedUrl
+    if (!mediaUrl && normalizedUrl && (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://'))) {
+      mediaUrl = normalizedUrl;
+    }
+
     // If media stream could not be extracted directly
     if (!mediaUrl) {
       const tempJob = await JobStoreService.createJob(
