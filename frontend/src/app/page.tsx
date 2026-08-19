@@ -115,11 +115,16 @@ export default function HomePage() {
             quality: topQuality,
             downloadedAt: new Date().toISOString(),
           });
+        } else {
+          setActiveJob(null);
+          setAnalysisError(res.error || 'Unable to verify or retrieve media stream for this link.');
         }
       } else {
+        setActiveJob(null);
         setAnalysisError(result.error || 'Unable to inspect URL. Please verify the link.');
       }
     } catch (err: any) {
+      setActiveJob(null);
       setAnalysisError(err.message || 'Failed to connect to analysis service.');
     } finally {
       setIsAnalyzing(false);
@@ -162,9 +167,11 @@ export default function HomePage() {
           downloadedAt: new Date().toISOString(),
         });
       } else {
+        setActiveJob(null);
         setAnalysisError(res.error || 'Could not queue download job.');
       }
     } catch (err: any) {
+      setActiveJob(null);
       setAnalysisError(err.message || 'Failed to trigger download job.');
     }
   };

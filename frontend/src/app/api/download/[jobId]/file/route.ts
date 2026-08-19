@@ -12,18 +12,20 @@ export async function GET(
     return NextResponse.json(
       {
         success: false,
-        error: 'Job not found or expired.',
+        error: 'Download job not found or expired. Please analyze the URL again.',
       },
       { status: 404 }
     );
   }
 
   console.log(
-    `[FILE_DOWNLOAD] [JOB] ${jobId} [REEL_ID] ${job.mediaId || 'none'} [URL] ${job.normalizedUrl}`
+    `[FILE_DOWNLOAD] [JOB] ${jobId} [PLATFORM] ${job.platform || 'unknown'} [REEL_ID] ${
+      job.mediaId || 'none'
+    } [URL] ${job.normalizedUrl}`
   );
 
-  // 1. Try streaming from direct mediaUrl if present
-  if (job.mediaUrl) {
+  // 1. Try streaming or redirecting to direct verified mediaUrl
+  if (job.mediaUrl && (job.mediaUrl.startsWith('http://') || job.mediaUrl.startsWith('https://'))) {
     try {
       const videoRes = await fetch(job.mediaUrl, {
         headers: {
@@ -33,7 +35,9 @@ export async function GET(
       });
 
       if (videoRes.ok && videoRes.body) {
-        const safeTitle = (job.title || 'Jano_HD_Video').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const safeTitle = (job.title || 'JANO_HD_Video')
+          .replace(/[^a-zA-Z0-9_-]/g, '_')
+          .substring(0, 60);
         const filename = `${safeTitle}_${job.quality || '1080p'}.mp4`;
 
         const responseHeaders = new Headers();
@@ -51,15 +55,20 @@ export async function GET(
         });
       }
     } catch (err: any) {
-      // ignore stream error
+      // Stream proxy failed, fall back to direct HTTPS redirect below
     }
+
+    // Direct HTTPS Redirect to verified media URL so browser downloads MP4 directly
+    return NextResponse.redirect(job.mediaUrl, 302);
   }
 
   // 2. Try proxying from local backend engine if active
   try {
     const backendRes = await fetch(`http://localhost:5000/api/download/${jobId}/file`);
     if (backendRes.ok && backendRes.body) {
-      const safeTitle = (job.title || 'Jano_HD_Video').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const safeTitle = (job.title || 'JANO_HD_Video')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .substring(0, 60);
       const filename = `${safeTitle}_${job.quality || '1080p'}.mp4`;
 
       const responseHeaders = new Headers();
@@ -75,7 +84,6 @@ export async function GET(
     // backend not running
   }
 
-  // Section 8 Requirement: Verification Failure Response
   return NextResponse.json(
     {
       success: false,
