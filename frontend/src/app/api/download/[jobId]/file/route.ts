@@ -9,7 +9,7 @@ export async function GET(
   const { jobId } = params;
   const searchParams = req.nextUrl.searchParams;
 
-  const blobUrlParam = searchParams.get('b');
+  const blobUrlParam = searchParams.get('b') || searchParams.get('u');
   const customNameParam = searchParams.get('name');
 
   // 1. Retrieve job or stateless query parameter
