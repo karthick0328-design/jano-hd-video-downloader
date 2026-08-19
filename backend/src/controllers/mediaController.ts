@@ -159,7 +159,7 @@ export class MediaController {
       .replace(/[^a-zA-Z0-9_-]/g, '_')
       .substring(0, 60);
 
-    const filename = `${safeTitle}_${job.quality || 'HD'}.${job.format || 'mp4'}`;
+    const filename = `JANO_HD_${safeTitle}_${job.quality || '1080p'}.${job.format || 'mp4'}`;
 
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Type', 'video/mp4');
