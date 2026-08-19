@@ -170,13 +170,11 @@ export class MediaController {
       return fileStream.pipe(res);
     }
 
-    // Stateless fallback: Redirect directly to normalized video URL if file is not on local worker
-    if (fallbackUrl && (fallbackUrl.startsWith('http://') || fallbackUrl.startsWith('https://'))) {
-      return res.redirect(302, fallbackUrl);
-    }
-
-    // Never return JSON for file download requests
-    res.setHeader('Content-Type', 'text/plain');
-    return res.status(404).send('Download file not available. Please analyze the URL again.');
+    // Never return 302 redirects to web pages or plain text error files
+    return res.status(404).json({
+      success: false,
+      error: 'Download file not available or processing failed. Please analyze the URL again.',
+    });
   }
 }
+

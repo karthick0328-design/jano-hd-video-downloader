@@ -18,12 +18,11 @@ export async function GET(
     );
   }
 
-  const downloadUrl =
-    job.mediaUrl ||
-    `/api/download/${job.jobId}/file?u=${encodeURIComponent(job.normalizedUrl)}&q=${job.quality}`;
+  const isCompleted = job.status === 'completed';
+  const downloadUrl = isCompleted ? `/api/download/${job.jobId}/file` : null;
 
   return NextResponse.json({
-    success: true,
+    success: job.status !== 'failed',
     jobId: job.jobId,
     normalizedUrl: job.normalizedUrl,
     mediaId: job.mediaId,
@@ -33,6 +32,8 @@ export async function GET(
     quality: job.quality || '1080p',
     format: job.format || 'mp4',
     downloadUrl,
+    error: job.status === 'failed' ? job.errorMessage || 'Job processing failed.' : undefined,
     completedAt: job.completedAt || new Date().toISOString(),
   });
 }
+

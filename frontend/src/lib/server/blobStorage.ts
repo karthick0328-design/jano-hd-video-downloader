@@ -21,6 +21,38 @@ export function generateSafeFilename(title: string, quality: string = '1080p'): 
 
 export class BlobStorageService {
   /**
+   * Perform an actual storage existence / readability check on a storage URL
+   */
+  public static async verifyStorageObject(storageUrl: string): Promise<{ verified: boolean; fileSize?: number }> {
+    if (!storageUrl || (!storageUrl.startsWith('http://') && !storageUrl.startsWith('https://'))) {
+      return { verified: false };
+    }
+
+    try {
+      const checkRes = await fetch(storageUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Range': 'bytes=0-1024',
+        },
+      });
+
+      const contentType = checkRes.headers.get('content-type') || '';
+      const contentLengthStr = checkRes.headers.get('content-length') || checkRes.headers.get('content-range')?.split('/')?.[1];
+      const fileSize = contentLengthStr ? parseInt(contentLengthStr, 10) : 0;
+
+      // Status must be 200 or 206 (Partial Content)
+      if ((checkRes.ok || checkRes.status === 206) && (!contentType || contentType.includes('video') || contentType.includes('octet-stream') || contentType.includes('mp4') || fileSize > 0)) {
+        return { verified: true, fileSize };
+      }
+    } catch (e) {
+      console.error('[STORAGE_VERIFICATION_ERROR]', e);
+    }
+
+    return { verified: false };
+  }
+
+  /**
    * Upload MP4 stream or buffer to Vercel Blob persistent storage and verify readability
    */
   public static async persistAndVerifyMedia(
@@ -46,6 +78,8 @@ export class BlobStorageService {
           });
           if (res.ok && res.body) {
             contentToUpload = res.body;
+          } else {
+            console.error(`[STORAGE_FETCH_ERROR] Stream fetch failed with status ${res.status}`);
           }
         }
 
@@ -55,12 +89,19 @@ export class BlobStorageService {
         });
 
         if (blob && blob.url) {
-          console.log(`[STORAGE_VERIFIED] Object uploaded to Vercel Blob: ${blob.url}`);
-          return {
-            success: true,
-            downloadUrl: blob.url,
-            storageObjectId: blob.url,
-          };
+          // Perform explicit storage existence & readability verification
+          const verification = await this.verifyStorageObject(blob.url);
+          if (verification.verified) {
+            console.log(`[STORAGE_VERIFIED] Object uploaded and verified in Vercel Blob: ${blob.url}`);
+            return {
+              success: true,
+              downloadUrl: blob.url,
+              storageObjectId: blob.url,
+              fileSize: verification.fileSize || 0,
+            };
+          } else {
+            console.error(`[STORAGE_VERIFICATION_FAILED] Vercel Blob object check failed for ${blob.url}`);
+          }
         }
       } catch (err: any) {
         console.error('[STORAGE_ERROR] Vercel Blob upload error:', err.message);
@@ -69,41 +110,22 @@ export class BlobStorageService {
 
     // 2. Direct HTTPS Media Stream verification fallback
     if (typeof mediaUrlOrBuffer === 'string' && (mediaUrlOrBuffer.startsWith('http://') || mediaUrlOrBuffer.startsWith('https://'))) {
-      try {
-        const checkRes = await fetch(mediaUrlOrBuffer, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Range': 'bytes=0-1024',
-          },
-        });
-
-        const cLength = parseInt(checkRes.headers.get('content-length') || '0', 10);
-
-        if (checkRes.ok || checkRes.status === 206 || checkRes.status === 302 || checkRes.status === 200) {
-          console.log(`[DIRECT_STREAM_VERIFIED] Direct stream URL verified: ${mediaUrlOrBuffer}`);
-          return {
-            success: true,
-            downloadUrl: mediaUrlOrBuffer,
-            storageObjectId: mediaUrlOrBuffer,
-            fileSize: cLength || 0,
-          };
-        }
-      } catch (e) {
-        // stream check failed
+      const verification = await this.verifyStorageObject(mediaUrlOrBuffer);
+      if (verification.verified) {
+        console.log(`[DIRECT_STREAM_VERIFIED] Direct stream URL verified: ${mediaUrlOrBuffer}`);
+        return {
+          success: true,
+          downloadUrl: mediaUrlOrBuffer,
+          storageObjectId: mediaUrlOrBuffer,
+          fileSize: verification.fileSize || 0,
+        };
       }
-
-      // If GET range check was blocked by anti-bot headers, pass direct HTTPS mediaUrl
-      return {
-        success: true,
-        downloadUrl: mediaUrlOrBuffer,
-        storageObjectId: mediaUrlOrBuffer,
-      };
     }
 
     return {
       success: false,
-      error: 'Unable to verify that the downloaded media matches the requested video.',
+      error: 'Unable to verify that the downloaded media object exists, is readable, and contains valid MP4 data.',
     };
   }
 }
+

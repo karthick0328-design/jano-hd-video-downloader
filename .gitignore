@@ -27,6 +27,6 @@ yarn-error.log*
 
 # System & IDE
 .DS_Store
-Thumbs.db
-.vscode/
-.idea/
+# Scratch & Temporary test scripts
+scratch/
+

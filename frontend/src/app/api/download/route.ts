@@ -22,43 +22,88 @@ export async function POST(req: NextRequest) {
     const platform = norm.platform;
     const mediaId = norm.mediaId;
 
-    // 1. Resolve direct media stream URL if missing
+    // 1. Resolve exact direct media stream matching mediaId
     if (!mediaUrl) {
       const exact = await ExactMediaExtractor.extractExactMediaUrl(normalizedUrl, platform);
       if (exact && exact.mediaUrl) {
+        // Strict Media Identity Check
+        if (mediaId && exact.mediaId && exact.mediaId.toLowerCase() !== mediaId.toLowerCase()) {
+          console.error(`[MEDIA_IDENTITY_REJECTED] Extracted ID ${exact.mediaId} !== requested ID ${mediaId}`);
+          return NextResponse.json(
+            { success: false, error: 'Unable to verify that the extracted media matches the requested video ID.' },
+            { status: 422 }
+          );
+        }
         mediaUrl = exact.mediaUrl;
         if (!title && exact.title) title = exact.title;
-      } else {
-        const analysis = await ServerDownloaderService.analyzeUrl(normalizedUrl);
-        if (analysis && analysis.success) {
-          if (!title) title = analysis.title;
-        }
       }
+    }
+
+    // If media stream could not be extracted directly
+    if (!mediaUrl) {
+      const tempJob = await JobStoreService.createJob(
+        url,
+        normalizedUrl,
+        quality,
+        format,
+        title || 'Video',
+        mediaId,
+        platform,
+        undefined,
+        undefined,
+        'failed',
+        'Unable to retrieve the exact requested video stream. Please verify the link.'
+      );
+
+      return NextResponse.json(
+        {
+          success: false,
+          jobId: tempJob.jobId,
+          error: 'Unable to retrieve the exact requested video stream. Please verify the link.',
+        },
+        { status: 422 }
+      );
     }
 
     const safeTitle = title || 'Video';
     const safeFilename = generateSafeFilename(safeTitle, quality);
 
     // 2. Storage & Stream Verification
-    let finalDownloadUrl = '';
-    if (mediaUrl) {
-      const storageResult = await BlobStorageService.persistAndVerifyMedia(
-        `job_${Date.now()}`,
-        mediaUrl,
+    const storageResult = await BlobStorageService.persistAndVerifyMedia(
+      `job_${Date.now()}`,
+      mediaUrl,
+      safeTitle,
+      quality
+    );
+
+    if (!storageResult || !storageResult.success || !storageResult.downloadUrl) {
+      const failedJob = await JobStoreService.createJob(
+        url,
+        normalizedUrl,
+        quality,
+        format,
         safeTitle,
-        quality
+        mediaId,
+        platform,
+        mediaUrl,
+        undefined,
+        'failed',
+        storageResult?.error || 'Persistent storage verification failed. Media object could not be saved.'
       );
-      if (storageResult && storageResult.success && storageResult.downloadUrl) {
-        finalDownloadUrl = storageResult.downloadUrl;
-      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          jobId: failedJob.jobId,
+          error: storageResult?.error || 'Persistent storage verification failed. Media object could not be saved.',
+        },
+        { status: 422 }
+      );
     }
 
-    const tempJobId = `job_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const verifiedBlobUrl = storageResult.downloadUrl;
 
-    if (!finalDownloadUrl) {
-      finalDownloadUrl = `/api/download/${tempJobId}/file?u=${encodeURIComponent(normalizedUrl)}&q=${quality}`;
-    }
-
+    // Create completed job referencing verified storage object
     const job = await JobStoreService.createJob(
       url,
       normalizedUrl,
@@ -67,11 +112,15 @@ export async function POST(req: NextRequest) {
       safeTitle,
       mediaId,
       platform,
-      finalDownloadUrl
+      mediaUrl,
+      verifiedBlobUrl,
+      'completed'
     );
 
+    const finalDownloadUrl = `/api/download/${job.jobId}/file`;
+
     console.log(
-      `[JOB_SUCCESS] [JOB] ${job.jobId} [PLATFORM] ${platform} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl} [DOWNLOAD_URL] ${finalDownloadUrl}`
+      `[JOB_SUCCESS] [JOB] ${job.jobId} [PLATFORM] ${platform} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl} [STORAGE_URL] ${verifiedBlobUrl}`
     );
 
     return NextResponse.json(
@@ -82,7 +131,7 @@ export async function POST(req: NextRequest) {
         mediaId,
         downloadUrl: finalDownloadUrl,
         filename: safeFilename,
-        message: 'Download job created successfully.',
+        message: 'Download job created successfully and storage object verified.',
       },
       { status: 202 }
     );
@@ -93,3 +142,4 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+

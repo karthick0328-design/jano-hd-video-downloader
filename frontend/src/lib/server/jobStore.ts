@@ -10,6 +10,9 @@ export interface DownloadJob {
   format: string;
   title: string;
   mediaUrl?: string;
+  blobUrl?: string;
+  storageObjectId?: string;
+  mimeType?: string;
   status: 'queued' | 'processing' | 'merging' | 'completed' | 'failed';
   progress: number;
   fileSize?: number;
@@ -17,6 +20,7 @@ export interface DownloadJob {
   errorMessage?: string;
   createdAt: string;
   completedAt?: string;
+  expiresAt?: string;
 }
 
 const jobStore = new Map<string, DownloadJob>();
@@ -30,9 +34,15 @@ export class JobStoreService {
     title: string,
     mediaId?: string,
     platform?: string,
-    mediaUrl?: string
+    mediaUrl?: string,
+    blobUrl?: string,
+    status: 'queued' | 'processing' | 'merging' | 'completed' | 'failed' = 'completed',
+    errorMessage?: string
   ): Promise<DownloadJob> {
     const jobId = `job_${crypto.randomUUID()}`;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 3600 * 1000).toISOString();
+
     const job: DownloadJob = {
       jobId,
       url,
@@ -43,15 +53,20 @@ export class JobStoreService {
       format,
       title,
       mediaUrl,
-      status: 'completed',
-      progress: 100,
-      createdAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
+      blobUrl: blobUrl || mediaUrl,
+      storageObjectId: blobUrl || mediaUrl,
+      mimeType: 'video/mp4',
+      status,
+      progress: status === 'completed' ? 100 : 0,
+      errorMessage,
+      createdAt: now.toISOString(),
+      completedAt: status === 'completed' ? now.toISOString() : undefined,
+      expiresAt,
     };
     jobStore.set(jobId, job);
 
     console.log(
-      `[JOB] ${jobId} [PLATFORM] ${platform || 'unknown'} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl} [QUALITY] ${quality} [STATUS] completed`
+      `[JOB_STORE] ${jobId} [PLATFORM] ${platform || 'unknown'} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl} [QUALITY] ${quality} [STATUS] ${status}`
     );
 
     return job;
@@ -73,3 +88,4 @@ export class JobStoreService {
     return updated;
   }
 }
+

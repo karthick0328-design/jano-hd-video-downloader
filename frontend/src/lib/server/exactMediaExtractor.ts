@@ -1,29 +1,67 @@
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { PlatformType } from '../../types';
+import { normalizeAndExtractMediaInfo } from './urlNormalizer';
+
+const execAsync = promisify(exec);
 
 export class ExactMediaExtractor {
   public static async extractExactMediaUrl(
     url: string,
     platform: PlatformType
-  ): Promise<{ mediaUrl: string | null; title?: string; thumbnail?: string }> {
+  ): Promise<{ mediaUrl: string | null; title?: string; thumbnail?: string; mediaId?: string }> {
+    const norm = normalizeAndExtractMediaInfo(url);
+    const mediaId = norm.mediaId;
+
     try {
+      // 1. Try yt-dlp if available on host (e.g. local or server worker environment)
+      try {
+        const { stdout } = await execAsync(`python -m yt_dlp --dump-json --no-warnings -- "${norm.normalizedUrl || url}"`, {
+          timeout: 10000,
+        });
+        if (stdout && stdout.trim()) {
+          const dump = JSON.parse(stdout.trim());
+          const extractedId = dump.id || dump.display_id || dump.webpage_url_basename;
+
+          // Strict Media Identity Check
+          if (mediaId && extractedId && extractedId.toLowerCase() !== mediaId.toLowerCase()) {
+            console.error(`[IDENTITY_FAILED] Extracted ID ${extractedId} does not match requested media ID ${mediaId}`);
+            return { mediaUrl: null };
+          }
+
+          const streamUrl = dump.url || (dump.formats && dump.formats.find((f: any) => f.vcodec !== 'none' && f.acodec !== 'none')?.url);
+          if (streamUrl) {
+            return {
+              mediaUrl: streamUrl,
+              title: dump.title,
+              thumbnail: dump.thumbnail,
+              mediaId,
+            };
+          }
+        }
+      } catch (e) {
+        // yt-dlp binary not present on serverless, proceed to pure HTTP resolvers
+      }
+
+      // 2. Pure HTTP platform resolvers
       if (platform === 'youtube' || platform === 'youtube-short') {
-        return await this.extractYouTube(url);
+        return await this.extractYouTube(norm.normalizedUrl || url, mediaId);
       } else if (platform === 'facebook' || platform === 'facebook-reel') {
-        return await this.extractFacebook(url);
+        return await this.extractFacebook(norm.normalizedUrl || url, mediaId);
       } else if (platform === 'instagram' || platform === 'instagram-reel') {
-        return await this.extractInstagram(url);
+        return await this.extractInstagram(norm.normalizedUrl || url, mediaId);
       } else if (platform === 'sharechat') {
-        return await this.extractShareChat(url);
+        return await this.extractShareChat(norm.normalizedUrl || url, mediaId);
       }
     } catch (e) {
-      // ignore
+      // ignore error
     }
-    return { mediaUrl: null };
+    return { mediaUrl: null, mediaId };
   }
 
-  private static async extractYouTube(url: string) {
+  private static async extractYouTube(url: string, mediaId?: string) {
     const match = url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-    const videoId = match ? match[1] : null;
+    const videoId = mediaId || (match ? match[1] : null);
     let title = 'YouTube HD Video';
     let thumbnail = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : '';
 
@@ -38,37 +76,41 @@ export class ExactMediaExtractor {
       }
     } catch (e) {}
 
-    // Resolve via cobalt / invidious / public format stream resolvers
     if (videoId) {
       const instances = [
-        `https://api.vkrdownloader.com/server?v=${encodeURIComponent(url)}`,
         `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
         `https://invidious.drgns.space/api/v1/videos/${videoId}`,
+        `https://pipedapi.kavin.rocks/streams/${videoId}`,
       ];
 
       for (const instUrl of instances) {
         try {
-          const res = await fetch(instUrl);
+          const res = await fetch(instUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+          });
           if (res.ok) {
             const data = await res.json();
             if (data.formatStreams && data.formatStreams.length > 0) {
               const stream = data.formatStreams.find((s: any) => s.container === 'mp4') || data.formatStreams[0];
               if (stream && stream.url) {
-                return { mediaUrl: stream.url, title, thumbnail };
+                return { mediaUrl: stream.url, title, thumbnail, mediaId: videoId };
               }
             }
-            if (data.data && data.data.downloadUrl) {
-              return { mediaUrl: data.data.downloadUrl, title, thumbnail };
+            if (data.videoStreams && data.videoStreams.length > 0) {
+              const stream = data.videoStreams.find((s: any) => s.format === 'mp4' || s.mimeType?.includes('mp4')) || data.videoStreams[0];
+              if (stream && stream.url) {
+                return { mediaUrl: stream.url, title, thumbnail, mediaId: videoId };
+              }
             }
           }
         } catch (e) {}
       }
     }
 
-    return { mediaUrl: null, title, thumbnail };
+    return { mediaUrl: null, title, thumbnail, mediaId: videoId || undefined };
   }
 
-  private static async extractFacebook(url: string) {
+  private static async extractFacebook(url: string, mediaId?: string) {
     try {
       const res = await fetch(url, {
         headers: {
@@ -98,17 +140,67 @@ export class ExactMediaExtractor {
 
         if (videoMatch && videoMatch[1]) {
           const mediaUrl = videoMatch[1].replace(/\\/g, '').replace(/&amp;/g, '&');
-          return { mediaUrl, title, thumbnail };
+          return { mediaUrl, title, thumbnail, mediaId };
         }
       }
     } catch (e) {}
 
-    return { mediaUrl: null };
+    return { mediaUrl: null, mediaId };
   }
 
-  private static async extractInstagram(url: string) {
+  private static async extractInstagram(url: string, mediaId?: string) {
+    const reelId = mediaId || url.match(/\/(?:reel|reels|p|tv)\/([A-Za-z0-9_-]+)/i)?.[1];
+
+    if (!reelId) {
+      return { mediaUrl: null };
+    }
+
+    // 1. Try Embed Page inspection (High success rate for public Reels)
+    const embedUrls = [
+      `https://www.instagram.com/reel/${reelId}/embed/captioned/`,
+      `https://www.instagram.com/p/${reelId}/embed/captioned/`,
+      `https://www.instagram.com/reel/${reelId}/embed/`,
+    ];
+
+    for (const embedUrl of embedUrls) {
+      try {
+        const res = await fetch(embedUrl, {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+        });
+        if (res.ok) {
+          const html = await res.text();
+          const cleanHtml = html.replace(/\\u0026/g, '&').replace(/\\/g, '');
+
+          // Look for direct video_url or video src matching CDN
+          const videoMatch =
+            cleanHtml.match(/"video_url":"([^"]+)"/i) ||
+            cleanHtml.match(/<video[^>]+src=["']([^"']+)["']/i) ||
+            cleanHtml.match(/"contentUrl":"([^"]+)"/i) ||
+            cleanHtml.match(/meta\s+property=["']og:video["']\s+content=["']([^"']+)["']/i) ||
+            cleanHtml.match(/meta\s+property=["']og:video:secure_url["']\s+content=["']([^"']+)["']/i);
+
+          const titleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']/i);
+          const title = titleMatch ? titleMatch[1].trim() : `Instagram Reel (${reelId})`;
+
+          const thumbMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i);
+          const thumbnail = thumbMatch ? thumbMatch[1].replace(/&amp;/g, '&') : '';
+
+          if (videoMatch && videoMatch[1] && (videoMatch[1].startsWith('http://') || videoMatch[1].startsWith('https://'))) {
+            const mediaUrl = videoMatch[1].replace(/&amp;/g, '&');
+            return { mediaUrl, title, thumbnail, mediaId: reelId };
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 2. Direct Instagram page scraper with Facebook Bot UA
     try {
-      const res = await fetch(url, {
+      const res = await fetch(`https://www.instagram.com/reel/${reelId}/`, {
         headers: {
           'User-Agent':
             'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
@@ -117,29 +209,30 @@ export class ExactMediaExtractor {
       });
       if (res.ok) {
         const html = await res.text();
+        const cleanHtml = html.replace(/\\u0026/g, '&').replace(/\\/g, '');
+
+        const videoMatch =
+          cleanHtml.match(/"video_url":"([^"]+)"/i) ||
+          cleanHtml.match(/meta\s+property=["']og:video:secure_url["']\s+content=["']([^"']+)["']/i) ||
+          cleanHtml.match(/meta\s+property=["']og:video["']\s+content=["']([^"']+)["']/i);
 
         const titleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']/i);
-        const title = titleMatch ? titleMatch[1].trim() : 'Instagram Reel';
+        const title = titleMatch ? titleMatch[1].trim() : `Instagram Reel (${reelId})`;
 
         const thumbMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i);
         const thumbnail = thumbMatch ? thumbMatch[1].replace(/&amp;/g, '&') : '';
 
-        const videoMatch =
-          html.match(/"video_url":"([^"]+)"/i) ||
-          html.match(/<meta\s+property=["']og:video:secure_url["']\s+content=["'](.*?)["']/i) ||
-          html.match(/<meta\s+property=["']og:video["']\s+content=["'](.*?)["']/i);
-
         if (videoMatch && videoMatch[1]) {
-          const mediaUrl = videoMatch[1].replace(/\\/g, '').replace(/&amp;/g, '&');
-          return { mediaUrl, title, thumbnail };
+          const mediaUrl = videoMatch[1].replace(/&amp;/g, '&');
+          return { mediaUrl, title, thumbnail, mediaId: reelId };
         }
       }
     } catch (e) {}
 
-    return { mediaUrl: null };
+    return { mediaUrl: null, mediaId: reelId };
   }
 
-  private static async extractShareChat(url: string) {
+  private static async extractShareChat(url: string, mediaId?: string) {
     try {
       const res = await fetch(url, {
         headers: {
@@ -167,11 +260,12 @@ export class ExactMediaExtractor {
 
         if (videoMatch && videoMatch[1]) {
           const mediaUrl = videoMatch[1].replace(/\\/g, '').replace(/&amp;/g, '&');
-          return { mediaUrl, title, thumbnail };
+          return { mediaUrl, title, thumbnail, mediaId };
         }
       }
     } catch (e) {}
 
-    return { mediaUrl: null };
+    return { mediaUrl: null, mediaId };
   }
 }
+
