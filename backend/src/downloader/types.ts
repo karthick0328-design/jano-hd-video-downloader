@@ -25,7 +25,9 @@ export interface QualityFormat {
 export interface MediaAnalysisResult {
   success: boolean;
   url: string;
+  normalizedUrl: string;
   platform: PlatformType;
+  mediaId?: string; // reelId or videoId
   title: string;
   thumbnail: string;
   duration: number; // in seconds
@@ -37,14 +39,19 @@ export interface MediaAnalysisResult {
 export interface DownloadJobOptions {
   jobId: string;
   url: string;
+  normalizedUrl: string;
   platform: PlatformType;
+  mediaId?: string;
   quality: string;
   format: string;
   formatId?: string;
+  title?: string;
 }
 
 export interface DownloadJobResult {
   jobId: string;
+  normalizedUrl: string;
+  mediaId?: string;
   filePath: string;
   fileName: string;
   fileSize: number;

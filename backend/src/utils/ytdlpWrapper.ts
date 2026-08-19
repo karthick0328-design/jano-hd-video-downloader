@@ -6,6 +6,8 @@ import { logger } from './logger';
 
 export interface YtDlpDumpJson {
   id: string;
+  display_id?: string;
+  webpage_url_basename?: string;
   title: string;
   thumbnail?: string;
   thumbnails?: Array<{ url: string; width?: number; height?: number }>;

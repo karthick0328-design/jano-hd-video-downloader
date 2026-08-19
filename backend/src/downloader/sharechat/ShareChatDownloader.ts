@@ -3,6 +3,7 @@ import path from 'path';
 import { env } from '../../config/env';
 import { FFmpegService } from '../../ffmpeg/FFmpegService';
 import { logger } from '../../utils/logger';
+import { normalizeAndExtractMediaInfo } from '../../utils/urlNormalizer';
 import { YtDlpDumpJson, YtDlpWrapper } from '../../utils/ytdlpWrapper';
 import { DownloaderService } from '../DownloaderService';
 import {
@@ -19,9 +20,7 @@ export class ShareChatDownloader extends DownloaderService {
   public canHandle(url: string): boolean {
     if (!url) return false;
     const lower = url.trim().toLowerCase();
-    return (
-      lower.includes('sharechat.com')
-    );
+    return lower.includes('sharechat.com');
   }
 
   public async getFormats(url: string): Promise<QualityFormat[]> {
@@ -30,8 +29,11 @@ export class ShareChatDownloader extends DownloaderService {
   }
 
   public async analyze(url: string): Promise<MediaAnalysisResult> {
+    const norm = normalizeAndExtractMediaInfo(url);
+    const targetUrl = norm.normalizedUrl || url;
+
     try {
-      const dump: YtDlpDumpJson = await YtDlpWrapper.dumpJson(url);
+      const dump: YtDlpDumpJson = await YtDlpWrapper.dumpJson(targetUrl);
 
       const title = dump.title || 'ShareChat Video';
       let thumbnail = dump.thumbnail || '';
@@ -90,7 +92,9 @@ export class ShareChatDownloader extends DownloaderService {
       return {
         success: true,
         url,
+        normalizedUrl: targetUrl,
         platform: 'sharechat',
+        mediaId: norm.mediaId,
         title,
         thumbnail,
         duration,
@@ -98,11 +102,13 @@ export class ShareChatDownloader extends DownloaderService {
         formats: sortedFormats,
       };
     } catch (err: any) {
-      logger.error('ShareChat analysis failed', { url, error: err.message });
+      logger.error('ShareChat analysis failed', { url: targetUrl, error: err.message });
       return {
         success: false,
         url,
+        normalizedUrl: targetUrl,
         platform: 'sharechat',
+        mediaId: norm.mediaId,
         title: '',
         thumbnail: '',
         duration: 0,
@@ -117,6 +123,7 @@ export class ShareChatDownloader extends DownloaderService {
     options: DownloadJobOptions,
     onProgress?: (progress: number, stage: string) => void
   ): Promise<DownloadJobResult> {
+    const downloadUrl = options.normalizedUrl || options.url;
     const jobDir = path.join(env.TEMP_DOWNLOAD_DIR, options.jobId);
     if (!fs.existsSync(jobDir)) {
       fs.mkdirSync(jobDir, { recursive: true });
@@ -127,7 +134,7 @@ export class ShareChatDownloader extends DownloaderService {
     onProgress?.(15, 'Downloading ShareChat media stream');
 
     const files = await YtDlpWrapper.downloadMedia(
-      options.url,
+      downloadUrl,
       outputTemplate,
       options.formatId,
       options.quality,
@@ -139,8 +146,6 @@ export class ShareChatDownloader extends DownloaderService {
     if (!files || files.length === 0) {
       throw new Error('Download failed: No media file retrieved for ShareChat URL.');
     }
-
-    logger.info('ShareChat downloaded raw files', { jobId: options.jobId, files });
 
     let videoFile: string | undefined;
     let audioFile: string | undefined;
@@ -182,6 +187,8 @@ export class ShareChatDownloader extends DownloaderService {
 
     return {
       jobId: options.jobId,
+      normalizedUrl: downloadUrl,
+      mediaId: options.mediaId,
       filePath: finalFilePath,
       fileName: `sharechat_${options.jobId}.mp4`,
       fileSize: probe.size,

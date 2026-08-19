@@ -23,7 +23,9 @@ export interface QualityFormat {
 export interface MediaAnalysisResponse {
   success: boolean;
   url: string;
+  normalizedUrl: string;
   platform: PlatformType;
+  mediaId?: string; // reelId or videoId
   title: string;
   thumbnail: string;
   duration: number;
@@ -49,6 +51,8 @@ export type JobStatus =
 export interface JobStatusResponse {
   success: boolean;
   jobId: string;
+  normalizedUrl?: string;
+  mediaId?: string;
   status: JobStatus;
   progress: number;
   title?: string;

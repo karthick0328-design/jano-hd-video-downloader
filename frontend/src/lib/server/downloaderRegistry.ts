@@ -2,63 +2,55 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { MediaAnalysisResponse, PlatformType, QualityFormat } from '../../types';
 import { ExactMediaExtractor } from './exactMediaExtractor';
+import { normalizeAndExtractMediaInfo } from './urlNormalizer';
 
 const execAsync = promisify(exec);
 
 export class ServerDownloaderService {
   public static detectPlatform(url: string): PlatformType {
-    if (!url) return 'unknown';
-    const lower = url.trim().toLowerCase();
-
-    if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
-      if (lower.includes('/shorts/')) return 'youtube-short';
-      return 'youtube';
-    }
-
-    if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
-      if (lower.includes('/reel/') || lower.includes('/reels/')) return 'instagram-reel';
-      return 'instagram';
-    }
-
-    if (lower.includes('facebook.com') || lower.includes('fb.watch') || lower.includes('fb.gg')) {
-      if (lower.includes('/reel/') || lower.includes('/reels/')) return 'facebook-reel';
-      return 'facebook';
-    }
-
-    if (lower.includes('sharechat.com')) {
-      return 'sharechat';
-    }
-
-    return 'unknown';
+    const norm = normalizeAndExtractMediaInfo(url);
+    return norm.platform;
   }
 
   public static async analyzeUrl(url: string): Promise<MediaAnalysisResponse> {
-    const platform = this.detectPlatform(url);
-    if (platform === 'unknown') {
+    const norm = normalizeAndExtractMediaInfo(url);
+
+    if (!norm.isValid || norm.platform === 'unknown') {
       return {
         success: false,
         url,
+        normalizedUrl: url,
         platform: 'unknown',
         title: '',
         thumbnail: '',
         duration: 0,
         maxAvailableQuality: '',
         formats: [],
-        error: 'Please enter a valid YouTube, Instagram, Facebook, or ShareChat URL.',
+        error: norm.error || 'Please enter a valid YouTube, Instagram, Facebook, or ShareChat URL.',
       };
     }
+
+    const normalizedUrl = norm.normalizedUrl;
+    const mediaId = norm.mediaId;
+    const platform = norm.platform;
+
+    console.log(`[ANALYSIS] [PLATFORM] ${platform} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl}`);
 
     // 1. Try local backend server if active
     try {
       const backendRes = await fetch('http://localhost:5000/api/media/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url: normalizedUrl }),
       });
       if (backendRes.ok) {
         const backendData = await backendRes.json();
         if (backendData && backendData.success) {
-          return backendData;
+          return {
+            ...backendData,
+            normalizedUrl,
+            mediaId,
+          };
         }
       }
     } catch (e) {
@@ -67,12 +59,32 @@ export class ServerDownloaderService {
 
     // 2. Try yt-dlp first if available
     try {
-      const { stdout } = await execAsync(`python -m yt_dlp --dump-json --no-warnings -- "${url}"`, {
+      const { stdout } = await execAsync(`python -m yt_dlp --dump-json --no-warnings -- "${normalizedUrl}"`, {
         timeout: 8000,
       });
 
       if (stdout && stdout.trim()) {
         const dump = JSON.parse(stdout.trim());
+
+        // Verify ID if mediaId exists (Section 7 verification)
+        const extractedId = dump.id || dump.display_id || dump.webpage_url_basename;
+        if (mediaId && extractedId && extractedId.toLowerCase() !== mediaId.toLowerCase()) {
+          console.error(`[VERIFICATION_FAILED] Extracted ID ${extractedId} does not match requested ID ${mediaId}`);
+          return {
+            success: false,
+            url,
+            normalizedUrl,
+            platform,
+            mediaId,
+            title: '',
+            thumbnail: '',
+            duration: 0,
+            maxAvailableQuality: '',
+            formats: [],
+            error: 'Unable to verify that the metadata matches the requested media ID.',
+          };
+        }
+
         const title = dump.title || this.getDefaultTitle(platform);
         let thumbnail = dump.thumbnail || '';
         if (!thumbnail && dump.thumbnails && dump.thumbnails.length > 0) {
@@ -124,7 +136,9 @@ export class ServerDownloaderService {
         return {
           success: true,
           url,
+          normalizedUrl,
           platform,
+          mediaId,
           title,
           thumbnail,
           duration,
@@ -137,7 +151,7 @@ export class ServerDownloaderService {
     }
 
     // 3. Serverless Metadata Inspector
-    return this.serverlessMetadataInspector(url, platform);
+    return this.serverlessMetadataInspector(normalizedUrl, platform, mediaId);
   }
 
   private static getDefaultTitle(platform: PlatformType): string {
@@ -162,19 +176,20 @@ export class ServerDownloaderService {
   }
 
   private static async serverlessMetadataInspector(
-    url: string,
-    platform: PlatformType
+    normalizedUrl: string,
+    platform: PlatformType,
+    mediaId?: string
   ): Promise<MediaAnalysisResponse> {
     let title = this.getDefaultTitle(platform);
     let thumbnail = '';
     let duration = 0;
 
-    const exact = await ExactMediaExtractor.extractExactMediaUrl(url, platform);
+    const exact = await ExactMediaExtractor.extractExactMediaUrl(normalizedUrl, platform);
     if (exact.title) title = exact.title;
     if (exact.thumbnail) thumbnail = exact.thumbnail;
 
     if (platform === 'youtube' || platform === 'youtube-short') {
-      const match = url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+      const match = normalizedUrl.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
       const videoId = match ? match[1] : '';
 
       if (videoId) {
@@ -183,7 +198,7 @@ export class ServerDownloaderService {
 
       try {
         const oembedRes = await fetch(
-          `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
+          `https://www.youtube.com/oembed?url=${encodeURIComponent(normalizedUrl)}&format=json`,
           { headers: { 'User-Agent': 'Mozilla/5.0' } }
         );
         if (oembedRes.ok) {
@@ -226,8 +241,10 @@ export class ServerDownloaderService {
 
     return {
       success: true,
-      url,
+      url: normalizedUrl,
+      normalizedUrl,
       platform,
+      mediaId,
       title: title || this.getDefaultTitle(platform),
       thumbnail,
       duration,

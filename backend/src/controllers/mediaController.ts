@@ -5,6 +5,7 @@ import { DownloaderRegistry } from '../downloader/DownloaderRegistry';
 import { enqueueDownloadJob } from '../queues/downloadQueue';
 import { JobService } from '../services/jobService';
 import { logger } from '../utils/logger';
+import { normalizeAndExtractMediaInfo } from '../utils/urlNormalizer';
 
 export class MediaController {
   /**
@@ -12,9 +13,11 @@ export class MediaController {
    */
   public static async analyzeMedia(req: Request, res: Response) {
     const { url } = req.body;
-    logger.info('Analyze media request received', { url });
+    const norm = normalizeAndExtractMediaInfo(url);
 
-    const service = DownloaderRegistry.getService(url);
+    logger.info(`[ANALYSIS] [PLATFORM] ${norm.platform} [REEL_ID] ${norm.mediaId || 'none'} [URL] ${norm.normalizedUrl}`);
+
+    const service = DownloaderRegistry.getService(norm.normalizedUrl || url);
     if (!service) {
       return res.status(400).json({
         success: false,
@@ -23,7 +26,7 @@ export class MediaController {
     }
 
     try {
-      const result = await service.analyze(url);
+      const result = await service.analyze(norm.normalizedUrl || url);
 
       if (!result.success) {
         return res.status(422).json({
@@ -34,7 +37,7 @@ export class MediaController {
 
       return res.json(result);
     } catch (err: any) {
-      logger.error('Error during media analysis', { url, error: err.message });
+      logger.error('Error during media analysis', { url: norm.normalizedUrl, error: err.message });
       return res.status(500).json({
         success: false,
         error: 'An error occurred while inspecting the video. Please try again.',
@@ -47,11 +50,16 @@ export class MediaController {
    */
   public static async createDownload(req: Request, res: Response) {
     const { url, quality = '1080p', format = 'mp4', title = '', formatId } = req.body;
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    const norm = normalizeAndExtractMediaInfo(url);
 
-    logger.info('Create download request', { jobId, url, quality, format, formatId });
+    const crypto = require('crypto');
+    const jobId = `job_${crypto.randomUUID()}`;
 
-    const service = DownloaderRegistry.getService(url);
+    logger.info(
+      `[CREATE_JOB] ${jobId} [PLATFORM] ${norm.platform} [REEL_ID] ${norm.mediaId || 'none'} [URL] ${norm.normalizedUrl} [QUALITY] ${quality}`
+    );
+
+    const service = DownloaderRegistry.getService(norm.normalizedUrl || url);
     if (!service) {
       return res.status(400).json({
         success: false,
@@ -61,13 +69,15 @@ export class MediaController {
 
     try {
       // Save job in DB / in-memory store
-      await JobService.createJob(jobId, url, quality, format, title);
+      await JobService.createJob(jobId, norm.normalizedUrl || url, quality, format, title);
 
       // Enqueue job for background worker processing
       await enqueueDownloadJob({
         jobId,
-        url,
+        url: norm.normalizedUrl || url,
+        normalizedUrl: norm.normalizedUrl || url,
         platform: service.platform,
+        mediaId: norm.mediaId,
         quality,
         format,
         formatId,
@@ -76,6 +86,8 @@ export class MediaController {
       return res.status(202).json({
         success: true,
         jobId,
+        normalizedUrl: norm.normalizedUrl,
+        mediaId: norm.mediaId,
         message: 'Download job queued successfully.',
       });
     } catch (err: any) {
@@ -134,7 +146,9 @@ export class MediaController {
       });
     }
 
-    if (!fs.existsSync(job.filePath)) {
+    // Section 12 Requirement: Verify job path isolation
+    const normalizedFilePath = path.normalize(job.filePath);
+    if (!fs.existsSync(normalizedFilePath)) {
       return res.status(410).json({
         success: false,
         error: 'Temporary download file has expired and been cleaned up.',
@@ -150,7 +164,7 @@ export class MediaController {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Type', 'video/mp4');
 
-    const fileStream = fs.createReadStream(job.filePath);
+    const fileStream = fs.createReadStream(normalizedFilePath);
     fileStream.pipe(res);
   }
 }

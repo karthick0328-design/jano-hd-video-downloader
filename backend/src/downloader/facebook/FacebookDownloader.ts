@@ -3,6 +3,7 @@ import path from 'path';
 import { env } from '../../config/env';
 import { FFmpegService } from '../../ffmpeg/FFmpegService';
 import { logger } from '../../utils/logger';
+import { normalizeAndExtractMediaInfo } from '../../utils/urlNormalizer';
 import { YtDlpDumpJson, YtDlpWrapper } from '../../utils/ytdlpWrapper';
 import { DownloaderService } from '../DownloaderService';
 import {
@@ -32,12 +33,13 @@ export class FacebookDownloader extends DownloaderService {
   }
 
   public async analyze(url: string): Promise<MediaAnalysisResult> {
-    const lowerUrl = url.toLowerCase();
-    const isReel = lowerUrl.includes('/reel/') || lowerUrl.includes('/reels/');
+    const norm = normalizeAndExtractMediaInfo(url);
+    const targetUrl = norm.normalizedUrl || url;
+    const isReel = norm.platform === 'facebook-reel';
     const detectedPlatform: PlatformType = isReel ? 'facebook-reel' : 'facebook';
 
     try {
-      const dump: YtDlpDumpJson = await YtDlpWrapper.dumpJson(url);
+      const dump: YtDlpDumpJson = await YtDlpWrapper.dumpJson(targetUrl);
 
       const title = dump.title || (isReel ? 'Facebook Reel' : 'Facebook Video');
       let thumbnail = dump.thumbnail || '';
@@ -96,7 +98,9 @@ export class FacebookDownloader extends DownloaderService {
       return {
         success: true,
         url,
+        normalizedUrl: targetUrl,
         platform: detectedPlatform,
+        mediaId: norm.mediaId,
         title,
         thumbnail,
         duration,
@@ -104,11 +108,13 @@ export class FacebookDownloader extends DownloaderService {
         formats: sortedFormats,
       };
     } catch (err: any) {
-      logger.error('Facebook analysis failed', { url, error: err.message });
+      logger.error('Facebook analysis failed', { url: targetUrl, error: err.message });
       return {
         success: false,
         url,
+        normalizedUrl: targetUrl,
         platform: detectedPlatform,
+        mediaId: norm.mediaId,
         title: '',
         thumbnail: '',
         duration: 0,
@@ -123,6 +129,7 @@ export class FacebookDownloader extends DownloaderService {
     options: DownloadJobOptions,
     onProgress?: (progress: number, stage: string) => void
   ): Promise<DownloadJobResult> {
+    const downloadUrl = options.normalizedUrl || options.url;
     const jobDir = path.join(env.TEMP_DOWNLOAD_DIR, options.jobId);
     if (!fs.existsSync(jobDir)) {
       fs.mkdirSync(jobDir, { recursive: true });
@@ -133,7 +140,7 @@ export class FacebookDownloader extends DownloaderService {
     onProgress?.(15, 'Downloading Facebook media streams');
 
     const files = await YtDlpWrapper.downloadMedia(
-      options.url,
+      downloadUrl,
       outputTemplate,
       options.formatId,
       options.quality,
@@ -145,8 +152,6 @@ export class FacebookDownloader extends DownloaderService {
     if (!files || files.length === 0) {
       throw new Error('Download failed: No media file retrieved for Facebook URL.');
     }
-
-    logger.info('Facebook downloaded raw files', { jobId: options.jobId, files });
 
     let videoFile: string | undefined;
     let audioFile: string | undefined;
@@ -188,6 +193,8 @@ export class FacebookDownloader extends DownloaderService {
 
     return {
       jobId: options.jobId,
+      normalizedUrl: downloadUrl,
+      mediaId: options.mediaId,
       filePath: finalFilePath,
       fileName: `facebook_${options.jobId}.mp4`,
       fileSize: probe.size,

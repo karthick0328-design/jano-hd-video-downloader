@@ -1,6 +1,11 @@
+import crypto from 'crypto';
+
 export interface DownloadJob {
   jobId: string;
   url: string;
+  normalizedUrl: string;
+  mediaId?: string; // reelId, videoId
+  platform?: string;
   quality: string;
   format: string;
   title: string;
@@ -18,16 +23,22 @@ const jobStore = new Map<string, DownloadJob>();
 
 export class JobStoreService {
   public static async createJob(
-    jobId: string,
     url: string,
+    normalizedUrl: string,
     quality: string,
     format: string,
     title: string,
+    mediaId?: string,
+    platform?: string,
     mediaUrl?: string
   ): Promise<DownloadJob> {
+    const jobId = `job_${crypto.randomUUID()}`;
     const job: DownloadJob = {
       jobId,
       url,
+      normalizedUrl,
+      mediaId,
+      platform,
       quality,
       format,
       title,
@@ -38,6 +49,11 @@ export class JobStoreService {
       completedAt: new Date().toISOString(),
     };
     jobStore.set(jobId, job);
+
+    console.log(
+      `[JOB] ${jobId} [PLATFORM] ${platform || 'unknown'} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl} [QUALITY] ${quality} [STATUS] completed`
+    );
+
     return job;
   }
 

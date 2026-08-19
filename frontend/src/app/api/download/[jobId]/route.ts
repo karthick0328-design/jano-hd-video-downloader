@@ -11,27 +11,24 @@ export async function GET(
   if (!job) {
     return NextResponse.json(
       {
-        success: true,
-        jobId,
-        status: 'completed',
-        progress: 100,
-        title: 'Video Download',
-        quality: '1080p',
-        format: 'mp4',
-        downloadUrl: `/api/download/${jobId}/file`,
-      }
+        success: false,
+        error: 'Job not found or expired.',
+      },
+      { status: 404 }
     );
   }
 
   return NextResponse.json({
     success: true,
     jobId: job.jobId,
-    status: 'completed',
-    progress: 100,
+    normalizedUrl: job.normalizedUrl,
+    mediaId: job.mediaId,
+    status: job.status,
+    progress: job.progress,
     title: job.title || 'Video Download',
     quality: job.quality || '1080p',
     format: job.format || 'mp4',
-    downloadUrl: `/api/download/${jobId}/file`,
+    downloadUrl: `/api/download/${job.jobId}/file`,
     completedAt: job.completedAt || new Date().toISOString(),
   });
 }

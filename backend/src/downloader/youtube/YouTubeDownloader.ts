@@ -3,6 +3,7 @@ import path from 'path';
 import { env } from '../../config/env';
 import { FFmpegService } from '../../ffmpeg/FFmpegService';
 import { logger } from '../../utils/logger';
+import { normalizeAndExtractMediaInfo } from '../../utils/urlNormalizer';
 import { YtDlpDumpJson, YtDlpWrapper } from '../../utils/ytdlpWrapper';
 import { DownloaderService } from '../DownloaderService';
 import {
@@ -33,8 +34,13 @@ export class YouTubeDownloader extends DownloaderService {
   }
 
   public async analyze(url: string): Promise<MediaAnalysisResult> {
+    const norm = normalizeAndExtractMediaInfo(url);
+    const targetUrl = norm.normalizedUrl || url;
+    const isShort = norm.platform === 'youtube-short';
+    const detectedPlatform: PlatformType = isShort ? 'youtube-short' : 'youtube';
+
     try {
-      const dump: YtDlpDumpJson = await YtDlpWrapper.dumpJson(url);
+      const dump: YtDlpDumpJson = await YtDlpWrapper.dumpJson(targetUrl);
 
       const title = dump.title || 'Untitled YouTube Video';
       let thumbnail = dump.thumbnail || '';
@@ -98,7 +104,9 @@ export class YouTubeDownloader extends DownloaderService {
       return {
         success: true,
         url,
-        platform: 'youtube',
+        normalizedUrl: targetUrl,
+        platform: detectedPlatform,
+        mediaId: norm.mediaId,
         title,
         thumbnail,
         duration,
@@ -106,11 +114,13 @@ export class YouTubeDownloader extends DownloaderService {
         formats: sortedFormats,
       };
     } catch (err: any) {
-      logger.error('YouTube analysis failed', { url, error: err.message });
+      logger.error('YouTube analysis failed', { url: targetUrl, error: err.message });
       return {
         success: false,
         url,
-        platform: 'youtube',
+        normalizedUrl: targetUrl,
+        platform: detectedPlatform,
+        mediaId: norm.mediaId,
         title: '',
         thumbnail: '',
         duration: 0,
@@ -125,6 +135,7 @@ export class YouTubeDownloader extends DownloaderService {
     options: DownloadJobOptions,
     onProgress?: (progress: number, stage: string) => void
   ): Promise<DownloadJobResult> {
+    const downloadUrl = options.normalizedUrl || options.url;
     const jobDir = path.join(env.TEMP_DOWNLOAD_DIR, options.jobId);
     if (!fs.existsSync(jobDir)) {
       fs.mkdirSync(jobDir, { recursive: true });
@@ -135,7 +146,7 @@ export class YouTubeDownloader extends DownloaderService {
     onProgress?.(10, 'Downloading media streams with yt-dlp');
 
     const files = await YtDlpWrapper.downloadMedia(
-      options.url,
+      downloadUrl,
       outputTemplate,
       options.formatId,
       options.quality,
@@ -151,7 +162,6 @@ export class YouTubeDownloader extends DownloaderService {
     let videoFile: string | undefined;
     let audioFile: string | undefined;
 
-    // Probe each file to accurately identify video stream file and audio stream file
     for (const f of files) {
       try {
         const probe = await FFmpegService.probeFile(f);
@@ -189,6 +199,8 @@ export class YouTubeDownloader extends DownloaderService {
 
     return {
       jobId: options.jobId,
+      normalizedUrl: downloadUrl,
+      mediaId: options.mediaId,
       filePath: finalFilePath,
       fileName: `youtube_${options.jobId}.mp4`,
       fileSize: probe.size,

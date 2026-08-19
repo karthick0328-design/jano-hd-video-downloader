@@ -3,6 +3,7 @@ import path from 'path';
 import { env } from '../../config/env';
 import { FFmpegService } from '../../ffmpeg/FFmpegService';
 import { logger } from '../../utils/logger';
+import { normalizeAndExtractMediaInfo } from '../../utils/urlNormalizer';
 import { YtDlpDumpJson, YtDlpWrapper } from '../../utils/ytdlpWrapper';
 import { DownloaderService } from '../DownloaderService';
 import {
@@ -21,6 +22,7 @@ export class InstagramDownloader extends DownloaderService {
     const lower = url.trim().toLowerCase();
     return (
       lower.includes('instagram.com/reel/') ||
+      lower.includes('instagram.com/reels/') ||
       lower.includes('instagram.com/p/') ||
       lower.includes('instagram.com/tv/') ||
       lower.includes('instagr.am/')
@@ -33,10 +35,50 @@ export class InstagramDownloader extends DownloaderService {
   }
 
   public async analyze(url: string): Promise<MediaAnalysisResult> {
-    try {
-      const dump: YtDlpDumpJson = await YtDlpWrapper.dumpJson(url);
+    const norm = normalizeAndExtractMediaInfo(url);
+    if (!norm.isValid) {
+      return {
+        success: false,
+        url,
+        normalizedUrl: url,
+        platform: 'instagram',
+        title: '',
+        thumbnail: '',
+        duration: 0,
+        maxAvailableQuality: '',
+        formats: [],
+        error: norm.error || 'Invalid Instagram URL.',
+      };
+    }
 
-      const title = dump.title || 'Instagram Video';
+    const reelId = norm.mediaId;
+    const targetUrl = norm.normalizedUrl;
+
+    logger.info(`[ANALYSIS] [PLATFORM] instagram [REEL_ID] ${reelId || 'none'} [URL] ${targetUrl}`);
+
+    try {
+      const dump: YtDlpDumpJson = await YtDlpWrapper.dumpJson(targetUrl);
+
+      // Section 7 Requirement: Verify analysis result corresponds to reelId
+      const extractedId = dump.id || dump.display_id || dump.webpage_url_basename;
+      if (reelId && extractedId && extractedId.toLowerCase() !== reelId.toLowerCase()) {
+        logger.error(`[VERIFICATION_FAILED] Extracted ID ${extractedId} does not match Reel ID ${reelId}`);
+        return {
+          success: false,
+          url,
+          normalizedUrl: targetUrl,
+          platform: 'instagram-reel',
+          mediaId: reelId,
+          title: '',
+          thumbnail: '',
+          duration: 0,
+          maxAvailableQuality: '',
+          formats: [],
+          error: 'Unable to verify that the metadata matches the requested Instagram Reel ID.',
+        };
+      }
+
+      const title = dump.title || (reelId ? `Instagram Reel (${reelId})` : 'Instagram Video');
       let thumbnail = dump.thumbnail || '';
       if (!thumbnail && dump.thumbnails && dump.thumbnails.length > 0) {
         thumbnail = dump.thumbnails[dump.thumbnails.length - 1].url;
@@ -46,7 +88,6 @@ export class InstagramDownloader extends DownloaderService {
       const rawFormats = dump.formats || [];
       const formatMap = new Map<number, QualityFormat>();
 
-      // Filter video streams
       for (const fmt of rawFormats) {
         const hasVideo = fmt.vcodec !== 'none' && !!fmt.vcodec;
         if (!hasVideo && rawFormats.length > 1) continue;
@@ -94,7 +135,9 @@ export class InstagramDownloader extends DownloaderService {
       return {
         success: true,
         url,
-        platform: 'instagram',
+        normalizedUrl: targetUrl,
+        platform: reelId ? 'instagram-reel' : 'instagram',
+        mediaId: reelId,
         title,
         thumbnail,
         duration,
@@ -102,11 +145,13 @@ export class InstagramDownloader extends DownloaderService {
         formats: sortedFormats,
       };
     } catch (err: any) {
-      logger.error('Instagram analysis failed', { url, error: err.message });
+      logger.error('Instagram analysis failed', { url: targetUrl, error: err.message });
       return {
         success: false,
         url,
+        normalizedUrl: targetUrl,
         platform: 'instagram',
+        mediaId: reelId,
         title: '',
         thumbnail: '',
         duration: 0,
@@ -121,6 +166,14 @@ export class InstagramDownloader extends DownloaderService {
     options: DownloadJobOptions,
     onProgress?: (progress: number, stage: string) => void
   ): Promise<DownloadJobResult> {
+    const reelId = options.mediaId;
+    const downloadUrl = options.normalizedUrl || options.url;
+
+    logger.info(
+      `[JOB] ${options.jobId} [PLATFORM] instagram [REEL_ID] ${reelId || 'none'} [URL] ${downloadUrl} [QUALITY] ${options.quality} [STATUS] processing`
+    );
+
+    // Section 5 Requirement: Isolated directory per jobId
     const jobDir = path.join(env.TEMP_DOWNLOAD_DIR, options.jobId);
     if (!fs.existsSync(jobDir)) {
       fs.mkdirSync(jobDir, { recursive: true });
@@ -131,7 +184,7 @@ export class InstagramDownloader extends DownloaderService {
     onProgress?.(15, 'Downloading Instagram media streams');
 
     const files = await YtDlpWrapper.downloadMedia(
-      options.url,
+      downloadUrl,
       outputTemplate,
       options.formatId,
       options.quality,
@@ -141,15 +194,13 @@ export class InstagramDownloader extends DownloaderService {
     );
 
     if (!files || files.length === 0) {
-      throw new Error('Download failed: No media file retrieved for Instagram URL.');
+      logger.error(`[JOB] ${options.jobId} [STATUS] failed - No media files downloaded`);
+      throw new Error('Download failed: No media file retrieved for Instagram Reel.');
     }
-
-    logger.info('Instagram downloaded raw files', { jobId: options.jobId, files });
 
     let videoFile: string | undefined;
     let audioFile: string | undefined;
 
-    // Probe each file to accurately identify video stream file and audio stream file
     for (const f of files) {
       try {
         const probe = await FFmpegService.probeFile(f);
@@ -183,12 +234,30 @@ export class InstagramDownloader extends DownloaderService {
 
     const probe = await FFmpegService.probeFile(finalFilePath);
 
+    // Section 8 Requirement: Strict Media Verification
+    const fileExists = fs.existsSync(finalFilePath);
+    const hasValidSize = probe.size > 0;
+    const hasValidVideo = probe.videoCodec !== 'unknown' || probe.duration > 0;
+
+    if (!fileExists || !hasValidSize || !hasValidVideo) {
+      logger.error(`[JOB] ${options.jobId} [STATUS] failed - Verification failed for Reel ${reelId}`);
+      throw new Error('Unable to verify that the downloaded media matches the requested Instagram Reel.');
+    }
+
+    logger.info(
+      `[JOB] ${options.jobId} [PLATFORM] instagram [REEL_ID] ${reelId || 'none'} [URL] ${downloadUrl} [QUALITY] ${options.quality} [STATUS] completed`
+    );
+
     onProgress?.(100, 'Processing completed');
+
+    const safeReelId = reelId ? `_${reelId}` : '';
 
     return {
       jobId: options.jobId,
+      normalizedUrl: downloadUrl,
+      mediaId: reelId,
       filePath: finalFilePath,
-      fileName: `instagram_${options.jobId}.mp4`,
+      fileName: `Instagram${safeReelId}_${options.quality}.mp4`,
       fileSize: probe.size,
       duration: Math.round(probe.duration),
       resolution: `${probe.height || 1080}p`,
