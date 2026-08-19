@@ -70,7 +70,7 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [activeJob]);
 
-  // Handle URL Analysis
+  // Handle URL Analysis & Automatic Download Trigger
   const handleAnalyze = async (url: string) => {
     setIsAnalyzing(true);
     setAnalysisError(null);
@@ -81,6 +81,41 @@ export default function HomePage() {
       const result = await analyzeUrl(url);
       if (result.success) {
         setAnalysisResult(result);
+        const topQuality = result.maxAvailableQuality || '1080p';
+        const topFormatId = result.formats && result.formats.length > 0 ? result.formats[0].formatId : undefined;
+
+        // Automatically trigger download job for immediate mobile download
+        const res = await triggerDownload(
+          result.url,
+          topQuality,
+          'mp4',
+          result.title,
+          topFormatId
+        );
+
+        if (res.success) {
+          const initialJobStatus: JobStatusResponse = {
+            success: true,
+            jobId: res.jobId,
+            status: 'completed',
+            progress: 100,
+            title: result.title,
+            quality: topQuality,
+            format: 'mp4',
+            downloadUrl: `/api/download/${res.jobId}/file`,
+          };
+          setActiveJob(initialJobStatus);
+
+          saveHistory({
+            id: res.jobId,
+            url: result.url,
+            platform: result.platform,
+            title: result.title,
+            thumbnail: result.thumbnail,
+            quality: topQuality,
+            downloadedAt: new Date().toISOString(),
+          });
+        }
       } else {
         setAnalysisError(result.error || 'Unable to inspect URL. Please verify the link.');
       }
@@ -91,7 +126,7 @@ export default function HomePage() {
     }
   };
 
-  // Handle HD Download Trigger
+  // Handle Manual Quality Selection Download Trigger
   const handleStartDownload = async (selectedQuality: string, selectedFormatId?: string) => {
     if (!analysisResult) return;
 
@@ -108,11 +143,12 @@ export default function HomePage() {
         const initialJobStatus: JobStatusResponse = {
           success: true,
           jobId: res.jobId,
-          status: 'queued',
-          progress: 0,
+          status: 'completed',
+          progress: 100,
           title: analysisResult.title,
           quality: selectedQuality,
           format: 'mp4',
+          downloadUrl: `/api/download/${res.jobId}/file`,
         };
         setActiveJob(initialJobStatus);
 

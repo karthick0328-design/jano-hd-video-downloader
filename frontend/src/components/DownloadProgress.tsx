@@ -108,7 +108,28 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
           <a
             href={getFullDownloadUrl(job.downloadUrl)}
             download={`${(job.title || 'video').replace(/[^a-zA-Z0-9_-]/g, '_')}_${job.quality}.mp4`}
-            className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-base sm:text-lg py-4 px-6 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/20 transform hover:scale-[1.01] transition-all"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={async (e) => {
+              try {
+                const targetUrl = getFullDownloadUrl(job.downloadUrl!);
+                const res = await fetch(targetUrl);
+                if (res.ok) {
+                  const blob = await res.blob();
+                  const blobUrl = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = blobUrl;
+                  a.download = `${(job.title || 'video').replace(/[^a-zA-Z0-9_-]/g, '_')}_${job.quality}.mp4`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+                }
+              } catch (err) {
+                // fallback to default link
+              }
+            }}
+            className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-base sm:text-lg py-4 px-6 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/20 transform hover:scale-[1.01] transition-all cursor-pointer"
           >
             <Download className="w-6 h-6" /> Download MP4 Video ({job.quality})
           </a>
