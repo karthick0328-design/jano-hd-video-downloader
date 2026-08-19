@@ -104,14 +104,29 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
 
       {/* Success CTA Download Button */}
       {isCompleted && job.downloadUrl && (
-        <div className="pt-2 animate-fadeIn">
+        <div className="pt-2 animate-fadeIn space-y-3">
           <a
             href={getFullDownloadUrl(job.downloadUrl)}
-            download
+            download={`${(job.title || 'video').replace(/[^a-zA-Z0-9_-]/g, '_')}_${job.quality}.mp4`}
             className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-base sm:text-lg py-4 px-6 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/20 transform hover:scale-[1.01] transition-all"
           >
-            <Download className="w-6 h-6" /> Save MP4 Video to Device ({job.quality})
+            <Download className="w-6 h-6" /> Download MP4 Video ({job.quality})
           </a>
+
+          {/* Mobile Gallery Saving Instructions */}
+          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-xs text-slate-600 space-y-2 text-left">
+            <div className="font-bold text-slate-800 flex items-center gap-1.5 text-xs uppercase tracking-wide">
+              <span>📱 How to Save to Phone Gallery / Photos:</span>
+            </div>
+            <ul className="space-y-1 list-disc list-inside text-[11px] leading-relaxed text-slate-600">
+              <li>
+                <strong className="text-slate-800">iPhone / iOS:</strong> After tapping Download, open Safari's Downloads menu ➔ tap the video ➔ tap the <strong className="text-blue-600">Share icon</strong> ➔ select <strong className="text-emerald-700">"Save Video"</strong> to place it directly in your Camera Roll.
+              </li>
+              <li>
+                <strong className="text-slate-800">Android:</strong> The video saves automatically to your <strong className="text-slate-800">Downloads</strong> folder and will appear in your Photos/Gallery app under Albums ➔ Downloads.
+              </li>
+            </ul>
+          </div>
         </div>
       )}
 
