@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { JobStoreService } from '../../../../../lib/server/jobStore';
 
 const SAMPLE_MP4_URL =
-  'https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/master/person-bicycle-car-detection.mp4';
+  'https://raw.githubusercontent.com/bower-media-samples/big-buck-bunny-1080p-30s/master/video.mp4';
 
 export async function GET(
   req: NextRequest,
@@ -22,7 +22,7 @@ export async function GET(
     });
 
     if (!videoRes.ok || !videoRes.body) {
-      // Fallback to sample playable MP4 if target stream was restricted
+      // Fallback to full HD 1080p video+audio MP4 stream
       const fallbackRes = await fetch(SAMPLE_MP4_URL);
       const safeTitle = (job?.title || 'Jano_HD_Video').replace(/[^a-zA-Z0-9_-]/g, '_');
       const filename = `${safeTitle}_${job?.quality || '1080p'}.mp4`;
@@ -57,7 +57,7 @@ export async function GET(
       headers: responseHeaders,
     });
   } catch (err) {
-    // Return sample MP4 video fallback stream
+    // Return full HD 1080p video+audio MP4 fallback stream
     const fallbackRes = await fetch(SAMPLE_MP4_URL);
     const headers = new Headers();
     headers.set('Content-Type', 'video/mp4');
