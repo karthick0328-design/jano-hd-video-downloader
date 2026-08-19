@@ -76,9 +76,10 @@ export class ExactMediaExtractor {
       }
     } catch (e) {}
 
-    if (process.env.YOUTUBE_MICROSERVICE_URL) {
+    const microserviceUrl = process.env.YOUTUBE_MICROSERVICE_URL || 'https://jano-hd-video-downloader.onrender.com';
+    if (microserviceUrl) {
       try {
-        const msRes = await fetch(`${process.env.YOUTUBE_MICROSERVICE_URL.replace(/\/$/, '')}/extract`, {
+        const msRes = await fetch(`${microserviceUrl.replace(/\/$/, '')}/extract`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
