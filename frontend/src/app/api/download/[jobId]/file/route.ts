@@ -73,9 +73,28 @@ export async function GET(
       });
     } else {
       console.error(`[FILE_FETCH_FAILED] Stream URL returned Content-Type ${contentType} and status ${videoRes.status}`);
+      if (
+        mediaStreamUrl.includes('googlevideo.com') ||
+        mediaStreamUrl.includes('cdninstagram.com') ||
+        mediaStreamUrl.includes('fbcdn.net') ||
+        mediaStreamUrl.includes('.mp4')
+      ) {
+        console.log(`[FILE_REDIRECT_FALLBACK] Redirecting client directly to media stream: ${mediaStreamUrl}`);
+        return NextResponse.redirect(mediaStreamUrl, { status: 302 });
+      }
     }
   } catch (err: any) {
     console.error('[FILE_FETCH_ERROR] Error fetching media stream from storage:', err.message);
+    if (
+      mediaStreamUrl &&
+      (mediaStreamUrl.includes('googlevideo.com') ||
+        mediaStreamUrl.includes('cdninstagram.com') ||
+        mediaStreamUrl.includes('fbcdn.net') ||
+        mediaStreamUrl.includes('.mp4'))
+    ) {
+      console.log(`[FILE_REDIRECT_FALLBACK] Redirecting client directly to media stream on error: ${mediaStreamUrl}`);
+      return NextResponse.redirect(mediaStreamUrl, { status: 302 });
+    }
   }
 
   // Never return 302 redirects to web pages or plain text error responses
