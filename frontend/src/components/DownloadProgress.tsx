@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
@@ -14,6 +15,9 @@ interface DownloadProgressProps {
 }
 
 export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
   const getStageLabel = () => {
     switch (job.status) {
       case 'queued':
@@ -32,7 +36,66 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
   };
 
   const isCompleted = job.status === 'completed';
-  const isFailed = job.status === 'failed';
+  const isFailed = job.status === 'failed' || !!downloadError;
+
+  const handleDownload = async () => {
+    if (!job.downloadUrl) return;
+
+    try {
+      setDownloading(true);
+      setDownloadError(null);
+
+      const targetUrl = getFullDownloadUrl(job.downloadUrl);
+      console.log('[FRONTEND_DOWNLOAD_FETCH] Fetching download URL:', targetUrl);
+
+      const res = await fetch(targetUrl);
+
+      if (!res.ok) {
+        let errText = 'Server returned an error while retrieving the video.';
+        try {
+          const errData = await res.json();
+          if (errData?.error) errText = errData.error;
+        } catch (e) {}
+        throw new Error(errText);
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      console.log('[FRONTEND_DOWNLOAD_FETCH] Content-Type:', contentType, 'Status:', res.status);
+
+      if (contentType.includes('json') || contentType.includes('html') || contentType.includes('text/plain')) {
+        throw new Error('Received invalid non-video response from server. Download aborted.');
+      }
+
+      const blob = await res.blob();
+      if (!blob || blob.size === 0) {
+        throw new Error('Downloaded file stream is empty (0 bytes). Download aborted.');
+      }
+
+      console.log('[FRONTEND_DOWNLOAD_FETCH] Blob size:', blob.size, 'bytes');
+
+      const cleanTitle = (job.title || 'Video')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .substring(0, 40);
+      const safeFilename = `JANO_HD_${cleanTitle || 'Video'}_${job.quality || '1080p'}.mp4`;
+
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = safeFilename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 15000);
+    } catch (err: any) {
+      console.error('[FRONTEND_DOWNLOAD_ERROR]', err);
+      setDownloadError(err.message || 'Failed to download video file.');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div className="w-full glass-panel-light-glow rounded-3xl p-6 sm:p-8 space-y-6 animate-fadeIn relative overflow-hidden">
@@ -41,14 +104,14 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
         <div className="flex items-center space-x-4">
           <div
             className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md ${
-              isCompleted
+              isCompleted && !downloadError
                 ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
                 : isFailed
                 ? 'bg-rose-50 border border-rose-200 text-rose-600'
                 : 'bg-indigo-50 border border-indigo-200 text-indigo-600'
             }`}
           >
-            {isCompleted ? (
+            {isCompleted && !downloadError ? (
               <CheckCircle2 className="w-6 h-6 text-emerald-600" />
             ) : isFailed ? (
               <AlertCircle className="w-6 h-6 text-rose-600" />
@@ -58,19 +121,19 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
           </div>
           <div>
             <h4 className="text-lg font-extrabold text-slate-900 leading-tight flex items-center gap-2">
-              {isCompleted
+              {isCompleted && !downloadError
                 ? 'HD Video Ready!'
                 : isFailed
                 ? 'Download Encountered Error'
                 : 'Processing HD Video Download'}
-              {isCompleted && (
+              {isCompleted && !downloadError && (
                 <span className="text-xs bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full font-mono font-extrabold">
                   100% COMPLETE
                 </span>
               )}
             </h4>
             <p className="text-xs text-slate-500 font-mono mt-1">
-              {getStageLabel()}
+              {downloadError ? 'Download error' : getStageLabel()}
             </p>
           </div>
         </div>
@@ -103,17 +166,24 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       )}
 
       {/* Success CTA Download Button */}
-      {isCompleted && job.downloadUrl && (
+      {isCompleted && job.downloadUrl && !downloadError && (
         <div className="pt-2 animate-fadeIn space-y-3">
-          <a
-            href={getFullDownloadUrl(job.downloadUrl)}
-            download={`JANO_HD_${(job.title || 'Video').replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').substring(0, 40)}_${job.quality || '1080p'}.mp4`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-base sm:text-lg py-4 px-6 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/20 transform hover:scale-[1.01] transition-all cursor-pointer"
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={downloading}
+            className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-base sm:text-lg py-4 px-6 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/20 transform hover:scale-[1.01] transition-all cursor-pointer disabled:opacity-75"
           >
-            <Download className="w-6 h-6" /> Download MP4 Video ({job.quality})
-          </a>
+            {downloading ? (
+              <>
+                <Loader2 className="w-6 h-6 animate-spin" /> Preparing MP4 Stream...
+              </>
+            ) : (
+              <>
+                <Download className="w-6 h-6" /> Download MP4 Video ({job.quality})
+              </>
+            )}
+          </button>
 
           {/* Mobile Gallery Saving Instructions */}
           <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 text-xs text-slate-600 space-y-2 text-left">
@@ -135,9 +205,10 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       {/* Failure Message Container */}
       {isFailed && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 text-xs font-mono leading-relaxed">
-          {job.error || 'Video download processing failed. Please verify the URL and try again.'}
+          {downloadError || job.error || 'Video download processing failed. Please verify the URL and try again.'}
         </div>
       )}
     </div>
   );
 }
+

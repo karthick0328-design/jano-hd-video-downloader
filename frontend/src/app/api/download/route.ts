@@ -117,11 +117,12 @@ export async function POST(req: NextRequest) {
       'completed'
     );
 
-    const finalDownloadUrl = `/api/download/${job.jobId}/file`;
+    const finalDownloadUrl = `/api/download/${job.jobId}/file?b=${encodeURIComponent(verifiedBlobUrl)}&name=${encodeURIComponent(safeFilename)}`;
 
     console.log(
-      `[JOB_SUCCESS] [JOB] ${job.jobId} [PLATFORM] ${platform} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl} [STORAGE_URL] ${verifiedBlobUrl}`
+      `[JOB_SUCCESS] [JOB] ${job.jobId} [PLATFORM] ${platform} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl} [STORAGE_URL] ${verifiedBlobUrl} [DOWNLOAD_URL] ${finalDownloadUrl}`
     );
+
 
     return NextResponse.json(
       {
@@ -142,4 +143,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
 
