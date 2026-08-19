@@ -32,6 +32,11 @@ def extract_video(req: VideoRequest):
         'no_warnings': True,
         'quiet': True,
         'skip_download': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'mweb'],
+            }
+        }
     }
 
     try:
