@@ -66,6 +66,16 @@ def extract_video(req: VideoRequest):
     match = re.search(r'(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})', url)
     video_id = match.group(1) if match else None
 
+    cookies_env = os.environ.get("YOUTUBE_COOKIES")
+    cookie_path = None
+    if cookies_env:
+        try:
+            cookie_path = "/tmp/youtube_cookies.txt"
+            with open(cookie_path, "w", encoding="utf-8") as f:
+                f.write(cookies_env)
+        except Exception:
+            cookie_path = None
+
     client_candidates = [
         ['android_creator'],
         ['android_testsuite'],
@@ -87,6 +97,8 @@ def extract_video(req: VideoRequest):
                 }
             }
         }
+        if cookie_path and os.path.exists(cookie_path):
+            ydl_opts['cookiefile'] = cookie_path
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
