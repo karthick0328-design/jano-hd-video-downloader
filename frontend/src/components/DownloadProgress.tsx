@@ -107,7 +107,7 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
         <div className="pt-2 animate-fadeIn space-y-3">
           <a
             href={getFullDownloadUrl(job.downloadUrl)}
-            download={`JANO_HD_${(job.title || 'video').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 40)}_${job.quality || '1080p'}.mp4`}
+            download={`JANO_HD_${(job.title || 'Video').replace(/[^a-zA-Z0-9_-]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '').substring(0, 40)}_${job.quality || '1080p'}.mp4`}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-extrabold text-base sm:text-lg py-4 px-6 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-emerald-600/20 transform hover:scale-[1.01] transition-all cursor-pointer"

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { BlobStorageService, generateSafeFilename } from '../../../lib/server/blobStorage';
 import { ServerDownloaderService } from '../../../lib/server/downloaderRegistry';
 import { ExactMediaExtractor } from '../../../lib/server/exactMediaExtractor';
 import { JobStoreService } from '../../../lib/server/jobStore';
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
     const platform = norm.platform;
     const mediaId = norm.mediaId;
 
+    // 1. Resolve media stream URL if missing
     if (!mediaUrl) {
       const exact = await ExactMediaExtractor.extractExactMediaUrl(normalizedUrl, platform);
       if (exact && exact.mediaUrl) {
@@ -34,18 +36,48 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const safeTitle = title || 'Video';
+    const safeFilename = generateSafeFilename(safeTitle, quality);
+
+    // 2. mandatory storage verification before marking completed
+    let storageResult = null;
+    if (mediaUrl) {
+      storageResult = await BlobStorageService.persistAndVerifyMedia(
+        `job_${Date.now()}`,
+        mediaUrl,
+        safeTitle,
+        quality
+      );
+    }
+
+    if (!storageResult || !storageResult.success || !storageResult.downloadUrl) {
+      console.error(`[DOWNLOAD_FAILED] Media verification or persistent storage failed for ${normalizedUrl}`);
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Unable to verify that the downloaded media matches the requested Instagram Reel.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const finalDownloadUrl = storageResult.downloadUrl;
+
     const job = await JobStoreService.createJob(
       url,
       normalizedUrl,
       quality,
       format,
-      title,
+      safeTitle,
       mediaId,
       platform,
-      mediaUrl
+      finalDownloadUrl
     );
 
-    const downloadUrl = `/api/download/${job.jobId}/file?u=${encodeURIComponent(normalizedUrl)}&q=${quality}`;
+    console.log(
+      `[JOB_COMPLETED] [JOB] ${job.jobId} [PLATFORM] ${platform} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl} [STORAGE_URL] ${finalDownloadUrl}`
+    );
 
     return NextResponse.json(
       {
@@ -53,8 +85,9 @@ export async function POST(req: NextRequest) {
         jobId: job.jobId,
         normalizedUrl,
         mediaId,
-        downloadUrl,
-        message: 'Download job created successfully.',
+        downloadUrl: finalDownloadUrl,
+        filename: safeFilename,
+        message: 'Download job created and verified successfully.',
       },
       { status: 202 }
     );

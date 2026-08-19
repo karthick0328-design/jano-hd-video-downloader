@@ -18,9 +18,9 @@ export async function GET(
     );
   }
 
-  const downloadUrl = `/api/download/${job.jobId}/file?u=${encodeURIComponent(
-    job.normalizedUrl
-  )}&q=${job.quality}`;
+  const downloadUrl =
+    job.mediaUrl ||
+    `/api/download/${job.jobId}/file?u=${encodeURIComponent(job.normalizedUrl)}&q=${job.quality}`;
 
   return NextResponse.json({
     success: true,
