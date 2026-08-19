@@ -13,7 +13,7 @@ export async function GET(
   const rawUrlParam = searchParams.get('u');
   const qualityParam = searchParams.get('q') || '1080p';
 
-  // 1. Try retrieving job from memory store first
+  // 1. Retrieve job from memory store or query parameters
   const job = await JobStoreService.getJob(jobId);
 
   const targetUrl = job?.normalizedUrl || rawUrlParam || '';
@@ -22,21 +22,18 @@ export async function GET(
   const title = job?.title || 'JANO_HD_Video';
 
   if (!targetUrl) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Download job not found or expired. Please analyze the URL again.',
-      },
-      { status: 404 }
-    );
+    return new NextResponse('Download link expired. Please analyze the URL again.', {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain' },
+    });
   }
 
   const norm = normalizeAndExtractMediaInfo(targetUrl);
   if (!norm.isValid) {
-    return NextResponse.json(
-      { success: false, error: 'Invalid video URL.' },
-      { status: 400 }
-    );
+    return new NextResponse('Invalid video link.', {
+      status: 400,
+      headers: { 'Content-Type': 'text/plain' },
+    });
   }
 
   const normalizedUrl = norm.normalizedUrl;
@@ -57,6 +54,7 @@ export async function GET(
     }
   }
 
+  // 3. Try streaming or 302 redirecting to verified media stream URL
   if (mediaStreamUrl && (mediaStreamUrl.startsWith('http://') || mediaStreamUrl.startsWith('https://'))) {
     try {
       const videoRes = await fetch(mediaStreamUrl, {
@@ -67,11 +65,12 @@ export async function GET(
       });
 
       if (videoRes.ok && videoRes.body) {
-        const safeTitle = (title || 'JANO_HD_Video')
+        const cleanTitle = (title || 'Video')
           .replace(/[^a-zA-Z0-9_-]/g, '_')
-          .substring(0, 50);
-        const safeReel = reelId ? `_${reelId}` : '';
-        const filename = `JANO_HD${safeReel}_${quality}.mp4`;
+          .replace(/_+/g, '_')
+          .replace(/^_+|_+$/g, '')
+          .substring(0, 40);
+        const filename = `JANO_HD_${cleanTitle || 'Video'}_${quality}.mp4`;
 
         const responseHeaders = new Headers();
         responseHeaders.set('Content-Type', 'video/mp4');
@@ -88,21 +87,23 @@ export async function GET(
         });
       }
     } catch (err: any) {
-      // stream proxy failed, fallback below
+      // stream proxy failed, fall back to 302 redirect below
     }
 
     // Direct 302 Redirect to verified HTTPS media stream URL
     return NextResponse.redirect(mediaStreamUrl, 302);
   }
 
-  // 3. Try local backend service if active
+  // 4. Try local backend service if active
   try {
     const backendRes = await fetch(`http://localhost:5000/api/download/${jobId}/file`);
     if (backendRes.ok && backendRes.body) {
-      const safeTitle = (title || 'JANO_HD_Video')
+      const cleanTitle = (title || 'Video')
         .replace(/[^a-zA-Z0-9_-]/g, '_')
-        .substring(0, 50);
-      const filename = `JANO_HD_${quality}.mp4`;
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .substring(0, 40);
+      const filename = `JANO_HD_${cleanTitle || 'Video'}_${quality}.mp4`;
 
       const responseHeaders = new Headers();
       responseHeaders.set('Content-Type', 'video/mp4');
@@ -117,12 +118,6 @@ export async function GET(
     // backend not active
   }
 
-  return NextResponse.json(
-    {
-      success: false,
-      error:
-        'Unable to verify that the downloaded media matches the requested Instagram Reel.',
-    },
-    { status: 400 }
-  );
+  // 5. Direct 302 Redirect to normalized original URL if media stream URL could not be proxied
+  return NextResponse.redirect(normalizedUrl, 302);
 }
