@@ -122,3 +122,9 @@ def extract_video(req: VideoRequest):
             return invidious_result
 
     raise HTTPException(status_code=500, detail=last_error or "Unable to extract YouTube video stream")
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
+
