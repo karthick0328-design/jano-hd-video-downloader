@@ -12,7 +12,6 @@ import { ResolutionTable } from '../components/ResolutionTable';
 import { StepsSection } from '../components/StepsSection';
 import { UrlInput } from '../components/UrlInput';
 import { analyzeUrl, checkJobStatus, triggerDownload } from '../lib/api';
-import { extractYouTubeClientStream } from '../lib/clientYoutubeExtractor';
 import { HistoryItem, JobStatusResponse, MediaAnalysisResponse } from '../types';
 
 export default function HomePage() {
@@ -99,20 +98,13 @@ export default function HomePage() {
     if (!analysisResult) return;
 
     try {
-      let resolvedMediaUrl = analysisResult.mediaUrl;
-
-      // If YouTube video or Short and mediaUrl was not resolved server-side, resolve client-side in user browser
-      if (!resolvedMediaUrl && (analysisResult.platform === 'youtube' || analysisResult.platform === 'youtube-short') && analysisResult.mediaId) {
-        resolvedMediaUrl = (await extractYouTubeClientStream(analysisResult.mediaId)) || undefined;
-      }
-
       const res = await triggerDownload(
         analysisResult.url,
         selectedQuality,
         'mp4',
         analysisResult.title,
         selectedFormatId,
-        resolvedMediaUrl
+        analysisResult.mediaUrl
       );
 
       if (res.success) {
