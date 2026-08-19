@@ -68,9 +68,9 @@ def extract_video(req: VideoRequest):
 
     client_candidates = [
         ['android_creator'],
-        ['android_embed'],
         ['android_testsuite'],
         ['android'],
+        ['mweb'],
         ['ios']
     ]
 
@@ -78,7 +78,6 @@ def extract_video(req: VideoRequest):
 
     for client_list in client_candidates:
         ydl_opts = {
-            'format': 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
             'no_warnings': True,
             'quiet': True,
             'skip_download': True,
