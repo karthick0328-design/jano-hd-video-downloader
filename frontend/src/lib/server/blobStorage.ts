@@ -83,30 +83,42 @@ export class BlobStorageService {
           }
         }
 
-        const blob = await put(`jobs/${jobId}/${filename}`, contentToUpload, {
-          access: 'public',
-          contentType: 'video/mp4',
-        });
+        let blob: any;
+        try {
+          blob = await put(`jobs/${jobId}/${filename}`, contentToUpload, {
+            access: 'public',
+            contentType: 'video/mp4',
+          });
+        } catch (pubErr: any) {
+          console.warn('[STORAGE] Public access put failed, trying private store access:', pubErr.message);
+          blob = await put(`jobs/${jobId}/${filename}`, contentToUpload, {
+            access: 'private',
+            contentType: 'video/mp4',
+          });
+        }
 
-        if (blob && blob.url) {
+        const targetBlobUrl = blob?.downloadUrl || blob?.url;
+
+        if (blob && targetBlobUrl) {
           // Perform explicit storage existence & readability verification
-          const verification = await this.verifyStorageObject(blob.url);
+          const verification = await this.verifyStorageObject(targetBlobUrl);
           if (verification.verified) {
-            console.log(`[STORAGE_VERIFIED] Object uploaded and verified in Vercel Blob: ${blob.url}`);
+            console.log(`[STORAGE_VERIFIED] Object uploaded and verified in Vercel Blob: ${targetBlobUrl}`);
             return {
               success: true,
-              downloadUrl: blob.url,
-              storageObjectId: blob.url,
+              downloadUrl: targetBlobUrl,
+              storageObjectId: targetBlobUrl,
               fileSize: verification.fileSize || 0,
             };
           } else {
-            console.error(`[STORAGE_VERIFICATION_FAILED] Vercel Blob object check failed for ${blob.url}`);
+            console.error(`[STORAGE_VERIFICATION_FAILED] Vercel Blob object check failed for ${targetBlobUrl}`);
           }
         }
       } catch (err: any) {
         console.error('[STORAGE_ERROR] Vercel Blob upload error:', err.message);
       }
     }
+
 
     // 2. Direct HTTPS Media Stream verification fallback
     if (typeof mediaUrlOrBuffer === 'string' && (mediaUrlOrBuffer.startsWith('http://') || mediaUrlOrBuffer.startsWith('https://'))) {
