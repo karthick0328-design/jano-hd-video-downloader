@@ -76,6 +76,27 @@ export class ExactMediaExtractor {
       }
     } catch (e) {}
 
+    if (process.env.YOUTUBE_MICROSERVICE_URL) {
+      try {
+        const msRes = await fetch(`${process.env.YOUTUBE_MICROSERVICE_URL.replace(/\/$/, '')}/extract`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+        if (msRes.ok) {
+          const msData = await msRes.json();
+          if (msData.success && msData.mediaUrl) {
+            return {
+              mediaUrl: msData.mediaUrl,
+              title: msData.title || title,
+              thumbnail: msData.thumbnail || thumbnail,
+              mediaId: msData.mediaId || videoId || undefined,
+            };
+          }
+        }
+      } catch (e) {}
+    }
+
     if (videoId) {
       const instances = [
         `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
