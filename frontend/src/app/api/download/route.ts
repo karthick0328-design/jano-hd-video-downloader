@@ -21,7 +21,6 @@ export async function POST(req: NextRequest) {
     const platform = norm.platform;
     const mediaId = norm.mediaId;
 
-    // Resolve direct media stream URL if missing
     if (!mediaUrl) {
       const exact = await ExactMediaExtractor.extractExactMediaUrl(normalizedUrl, platform);
       if (exact && exact.mediaUrl) {
@@ -46,12 +45,15 @@ export async function POST(req: NextRequest) {
       mediaUrl
     );
 
+    const downloadUrl = `/api/download/${job.jobId}/file?u=${encodeURIComponent(normalizedUrl)}&q=${quality}`;
+
     return NextResponse.json(
       {
         success: true,
         jobId: job.jobId,
         normalizedUrl,
         mediaId,
+        downloadUrl,
         message: 'Download job created successfully.',
       },
       { status: 202 }

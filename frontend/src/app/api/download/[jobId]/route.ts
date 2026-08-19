@@ -18,6 +18,10 @@ export async function GET(
     );
   }
 
+  const downloadUrl = `/api/download/${job.jobId}/file?u=${encodeURIComponent(
+    job.normalizedUrl
+  )}&q=${job.quality}`;
+
   return NextResponse.json({
     success: true,
     jobId: job.jobId,
@@ -28,7 +32,7 @@ export async function GET(
     title: job.title || 'Video Download',
     quality: job.quality || '1080p',
     format: job.format || 'mp4',
-    downloadUrl: `/api/download/${job.jobId}/file`,
+    downloadUrl,
     completedAt: job.completedAt || new Date().toISOString(),
   });
 }
