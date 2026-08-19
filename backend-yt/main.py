@@ -89,6 +89,35 @@ def extract_video(req: VideoRequest):
         except Exception:
             cookie_path = None
 
+    # If cookies are provided, run standard cookie-authenticated extraction first
+    if cookie_path and os.path.exists(cookie_path):
+        ydl_opts = {
+            'no_warnings': True,
+            'quiet': True,
+            'skip_download': True,
+            'cookiefile': cookie_path,
+        }
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if info:
+                    stream_url = info.get('url')
+                    if not stream_url and info.get('formats'):
+                        for f in info['formats']:
+                            if f.get('url') and f.get('vcodec') != 'none':
+                                stream_url = f['url']
+                                break
+                    if stream_url:
+                        return {
+                            "success": True,
+                            "mediaUrl": stream_url,
+                            "title": info.get('title') or 'YouTube Video',
+                            "thumbnail": info.get('thumbnail') or '',
+                            "mediaId": info.get('id') or ''
+                        }
+        except Exception as e:
+            last_error = f"Cookie extraction failed: {str(e)}"
+
     client_candidates = [
         ['android_creator'],
         ['android_testsuite'],
