@@ -155,79 +155,69 @@ export class ExactMediaExtractor {
       return { mediaUrl: null };
     }
 
-    // 1. Try Embed Page inspection (High success rate for public Reels)
+    // 1. Try Embed Page inspection & oEmbed metadata
     const embedUrls = [
       `https://www.instagram.com/reel/${reelId}/embed/captioned/`,
       `https://www.instagram.com/p/${reelId}/embed/captioned/`,
       `https://www.instagram.com/reel/${reelId}/embed/`,
+      `https://www.instagram.com/reel/${reelId}/`,
+    ];
+
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
     ];
 
     for (const embedUrl of embedUrls) {
-      try {
-        const res = await fetch(embedUrl, {
-          headers: {
-            'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
-        });
-        if (res.ok) {
-          const html = await res.text();
-          const cleanHtml = html.replace(/\\u0026/g, '&').replace(/\\/g, '');
+      for (const ua of userAgents) {
+        try {
+          const res = await fetch(embedUrl, {
+            headers: {
+              'User-Agent': ua,
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Accept-Language': 'en-US,en;q=0.9',
+            },
+          });
+          if (res.ok) {
+            const html = await res.text();
+            const cleanHtml = html
+              .replace(/\\u0026/g, '&')
+              .replace(/\\/g, '')
+              .replace(/&amp;/g, '&');
 
-          // Look for direct video_url or video src matching CDN
-          const videoMatch =
-            cleanHtml.match(/"video_url":"([^"]+)"/i) ||
-            cleanHtml.match(/<video[^>]+src=["']([^"']+)["']/i) ||
-            cleanHtml.match(/"contentUrl":"([^"]+)"/i) ||
-            cleanHtml.match(/meta\s+property=["']og:video["']\s+content=["']([^"']+)["']/i) ||
-            cleanHtml.match(/meta\s+property=["']og:video:secure_url["']\s+content=["']([^"']+)["']/i);
+            // Look for direct video_url, video_versions, or video src matching CDN
+            const videoMatch =
+              cleanHtml.match(/"video_url":"([^"]+)"/i) ||
+              cleanHtml.match(/"url":"(https:\/\/[^"]+?\.mp4[^"]*)"/i) ||
+              cleanHtml.match(/"video_versions":\[\{[^}]*?"url":"([^"]+)"/i) ||
+              cleanHtml.match(/<video[^>]+src=["']([^"']+)["']/i) ||
+              cleanHtml.match(/"contentUrl":"([^"]+)"/i) ||
+              cleanHtml.match(/meta\s+property=["']og:video["']\s+content=["']([^"']+)["']/i) ||
+              cleanHtml.match(/meta\s+property=["']og:video:secure_url["']\s+content=["']([^"']+)["']/i) ||
+              cleanHtml.match(/meta\s+name=["']twitter:player:stream["']\s+content=["']([^"']+)["']/i);
 
-          const titleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']/i);
-          const title = titleMatch ? titleMatch[1].trim() : `Instagram Reel (${reelId})`;
+            const titleMatch =
+              html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']/i) ||
+              html.match(/<title>(.*?)<\/title>/i);
+            const title = titleMatch ? titleMatch[1].trim() : `Instagram Reel (${reelId})`;
 
-          const thumbMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i);
-          const thumbnail = thumbMatch ? thumbMatch[1].replace(/&amp;/g, '&') : '';
+            const thumbMatch =
+              html.match(/<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i);
+            const thumbnail = thumbMatch ? thumbMatch[1].replace(/&amp;/g, '&') : '';
 
-          if (videoMatch && videoMatch[1] && (videoMatch[1].startsWith('http://') || videoMatch[1].startsWith('https://'))) {
-            const mediaUrl = videoMatch[1].replace(/&amp;/g, '&');
-            return { mediaUrl, title, thumbnail, mediaId: reelId };
+            if (
+              videoMatch &&
+              videoMatch[1] &&
+              (videoMatch[1].startsWith('http://') || videoMatch[1].startsWith('https://'))
+            ) {
+              const mediaUrl = videoMatch[1].replace(/&amp;/g, '&');
+              return { mediaUrl, title, thumbnail, mediaId: reelId };
+            }
           }
-        }
-      } catch (e) {}
-    }
-
-    // 2. Direct Instagram page scraper with Facebook Bot UA
-    try {
-      const res = await fetch(`https://www.instagram.com/reel/${reelId}/`, {
-        headers: {
-          'User-Agent':
-            'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-      });
-      if (res.ok) {
-        const html = await res.text();
-        const cleanHtml = html.replace(/\\u0026/g, '&').replace(/\\/g, '');
-
-        const videoMatch =
-          cleanHtml.match(/"video_url":"([^"]+)"/i) ||
-          cleanHtml.match(/meta\s+property=["']og:video:secure_url["']\s+content=["']([^"']+)["']/i) ||
-          cleanHtml.match(/meta\s+property=["']og:video["']\s+content=["']([^"']+)["']/i);
-
-        const titleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']/i);
-        const title = titleMatch ? titleMatch[1].trim() : `Instagram Reel (${reelId})`;
-
-        const thumbMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i);
-        const thumbnail = thumbMatch ? thumbMatch[1].replace(/&amp;/g, '&') : '';
-
-        if (videoMatch && videoMatch[1]) {
-          const mediaUrl = videoMatch[1].replace(/&amp;/g, '&');
-          return { mediaUrl, title, thumbnail, mediaId: reelId };
-        }
+        } catch (e) {}
       }
-    } catch (e) {}
+    }
 
     return { mediaUrl: null, mediaId: reelId };
   }
