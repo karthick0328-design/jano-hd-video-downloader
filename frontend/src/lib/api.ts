@@ -4,7 +4,7 @@ import {
   MediaAnalysisResponse,
 } from '../types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export async function analyzeUrl(url: string): Promise<MediaAnalysisResponse> {
   const res = await fetch(`${API_BASE}/media/analyze`, {
@@ -51,5 +51,6 @@ export async function checkJobStatus(jobId: string): Promise<JobStatusResponse> 
 
 export function getFullDownloadUrl(pathUrl: string): string {
   if (pathUrl.startsWith('http')) return pathUrl;
-  return `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}${pathUrl}`;
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  return baseUrl ? `${baseUrl}${pathUrl}` : pathUrl;
 }
