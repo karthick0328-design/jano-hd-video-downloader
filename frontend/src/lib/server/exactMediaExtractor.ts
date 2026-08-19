@@ -38,16 +38,32 @@ export class ExactMediaExtractor {
       }
     } catch (e) {}
 
-    // Resolve via public stream resolvers for YouTube MP4 video+audio
-    try {
-      const apiRes = await fetch(`https://api.vkrdown.com/v1/meta?url=${encodeURIComponent(url)}`);
-      if (apiRes.ok) {
-        const data = await apiRes.json();
-        if (data && data.data && data.data.downloadUrl) {
-          return { mediaUrl: data.data.downloadUrl, title, thumbnail };
-        }
+    // Resolve via cobalt / invidious / public format stream resolvers
+    if (videoId) {
+      const instances = [
+        `https://api.vkrdownloader.com/server?v=${encodeURIComponent(url)}`,
+        `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
+        `https://invidious.drgns.space/api/v1/videos/${videoId}`,
+      ];
+
+      for (const instUrl of instances) {
+        try {
+          const res = await fetch(instUrl);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.formatStreams && data.formatStreams.length > 0) {
+              const stream = data.formatStreams.find((s: any) => s.container === 'mp4') || data.formatStreams[0];
+              if (stream && stream.url) {
+                return { mediaUrl: stream.url, title, thumbnail };
+              }
+            }
+            if (data.data && data.data.downloadUrl) {
+              return { mediaUrl: data.data.downloadUrl, title, thumbnail };
+            }
+          }
+        } catch (e) {}
       }
-    } catch (e) {}
+    }
 
     return { mediaUrl: null, title, thumbnail };
   }
