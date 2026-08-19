@@ -55,7 +55,9 @@ export async function GET(
       headers: fetchHeaders,
     });
 
-    if (videoRes.ok && videoRes.body) {
+    const contentType = videoRes.headers.get('content-type') || '';
+
+    if (videoRes.ok && videoRes.body && !contentType.includes('text/html') && !contentType.includes('application/json')) {
       const responseHeaders = new Headers();
       responseHeaders.set('Content-Type', 'video/mp4');
       responseHeaders.set('Content-Disposition', `attachment; filename="${filename}"`);
@@ -70,7 +72,7 @@ export async function GET(
         headers: responseHeaders,
       });
     } else {
-      console.error(`[FILE_FETCH_FAILED] Media stream URL returned HTTP status ${videoRes.status}`);
+      console.error(`[FILE_FETCH_FAILED] Stream URL returned Content-Type ${contentType} and status ${videoRes.status}`);
     }
   } catch (err: any) {
     console.error('[FILE_FETCH_ERROR] Error fetching media stream from storage:', err.message);
