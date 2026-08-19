@@ -48,7 +48,24 @@ export class ServerDownloaderService {
       };
     }
 
-    // 1. Try yt-dlp first if available
+    // 1. Try local backend server if active
+    try {
+      const backendRes = await fetch('http://localhost:5000/api/media/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (backendRes.ok) {
+        const backendData = await backendRes.json();
+        if (backendData && backendData.success) {
+          return backendData;
+        }
+      }
+    } catch (e) {
+      // local backend server not active
+    }
+
+    // 2. Try yt-dlp first if available
     try {
       const { stdout } = await execAsync(`python -m yt_dlp --dump-json --no-warnings -- "${url}"`, {
         timeout: 8000,
@@ -116,10 +133,10 @@ export class ServerDownloaderService {
         };
       }
     } catch (err) {
-      // yt-dlp binary not available on serverless, fallback below
+      // yt-dlp binary not available on serverless
     }
 
-    // 2. High-speed Multi-Tiered Serverless Metadata Inspector
+    // 3. Serverless Metadata Inspector
     return this.serverlessMetadataInspector(url, platform);
   }
 
@@ -152,12 +169,10 @@ export class ServerDownloaderService {
     let thumbnail = '';
     let duration = 0;
 
-    // Call ExactMediaExtractor for real video and audio media stream
     const exact = await ExactMediaExtractor.extractExactMediaUrl(url, platform);
     if (exact.title) title = exact.title;
     if (exact.thumbnail) thumbnail = exact.thumbnail;
 
-    // YouTube specific extraction
     if (platform === 'youtube' || platform === 'youtube-short') {
       const match = url.match(/(?:watch\?v=|shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
       const videoId = match ? match[1] : '';
@@ -176,45 +191,7 @@ export class ServerDownloaderService {
           if (data.title) title = data.title;
           if (data.thumbnail_url) thumbnail = data.thumbnail_url;
         }
-      } catch (e) {
-        // ignore oembed error
-      }
-    } else {
-      // OpenGraph HTML Scraper for Facebook, Instagram, ShareChat
-      try {
-        const pageRes = await fetch(url, {
-          headers: {
-            'User-Agent':
-              'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
-        });
-
-        if (pageRes.ok) {
-          const html = await pageRes.text();
-
-          const titleMatch =
-            html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']/i) ||
-            html.match(/<meta\s+name=["']title["']\s+content=["'](.*?)["']/i) ||
-            html.match(/<title>(.*?)<\/title>/i);
-          if (titleMatch && titleMatch[1]) {
-            title = titleMatch[1]
-              .replace(/&#\d+;/g, '')
-              .replace(/&quot;/g, '"')
-              .replace(/&amp;/g, '&')
-              .trim();
-          }
-
-          const thumbMatch =
-            html.match(/<meta\s+property=["']og:image["']\s+content=["'](.*?)["']/i) ||
-            html.match(/<meta\s+name=["']twitter:image["']\s+content=["'](.*?)["']/i);
-          if (thumbMatch && thumbMatch[1]) {
-            thumbnail = thumbMatch[1].replace(/&amp;/g, '&');
-          }
-        }
-      } catch (e) {
-        // ignore scraper error
-      }
+      } catch (e) {}
     }
 
     const defaultFormats: QualityFormat[] = [
@@ -241,15 +218,6 @@ export class ServerDownloaderService {
         height: 480,
         format: 'mp4',
         formatId: '480p',
-        hasVideo: true,
-        hasAudio: true,
-        needsMerge: false,
-      },
-      {
-        quality: '360p',
-        height: 360,
-        format: 'mp4',
-        formatId: '360p',
         hasVideo: true,
         hasAudio: true,
         needsMerge: false,
