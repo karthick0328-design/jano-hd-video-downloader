@@ -34,7 +34,7 @@ def extract_video(req: VideoRequest):
         'skip_download': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'mweb'],
+                'player_client': ['android_creator', 'android_testsuite', 'android'],
             }
         }
     }
