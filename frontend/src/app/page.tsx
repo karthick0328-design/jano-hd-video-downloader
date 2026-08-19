@@ -158,7 +158,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-sm sm:text-base text-slate-600 max-w-lg font-normal leading-relaxed">
-            High-definition video processing for YouTube, Shorts, and Instagram Reels up to 4K.
+            High-definition video processing for YouTube, Instagram, Facebook, and ShareChat up to 4K.
           </p>
 
           {/* Search URL Bar */}

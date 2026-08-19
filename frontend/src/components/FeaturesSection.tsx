@@ -19,8 +19,8 @@ export function FeaturesSection() {
     },
     {
       icon: <DownloadCloud className="w-6 h-6 text-cyan-600" />,
-      title: 'YouTube & Instagram',
-      description: 'Full support for YouTube videos, Shorts, and Instagram Reels with automatic format selection.',
+      title: 'YouTube, Instagram, Facebook & ShareChat',
+      description: 'Full support for YouTube, Instagram, Facebook, and ShareChat with automatic format selection.',
     },
     {
       icon: <Cpu className="w-6 h-6 text-purple-600" />,

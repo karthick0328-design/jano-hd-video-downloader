@@ -1,4 +1,12 @@
-export type PlatformType = 'youtube' | 'instagram' | 'unknown';
+export type PlatformType =
+  | 'youtube'
+  | 'youtube-short'
+  | 'instagram'
+  | 'instagram-reel'
+  | 'facebook'
+  | 'facebook-reel'
+  | 'sharechat'
+  | 'unknown';
 
 export interface QualityFormat {
   quality: string; // e.g., '2160p', '1440p', '1080p', '720p', '480p', '360p'

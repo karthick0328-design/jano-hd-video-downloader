@@ -18,7 +18,7 @@ export class MediaController {
     if (!service) {
       return res.status(400).json({
         success: false,
-        error: 'Please enter a valid YouTube or Instagram URL.',
+        error: 'Please enter a valid YouTube, Instagram, Facebook, or ShareChat URL.',
       });
     }
 
@@ -55,7 +55,7 @@ export class MediaController {
     if (!service) {
       return res.status(400).json({
         success: false,
-        error: 'Please enter a valid YouTube or Instagram URL.',
+        error: 'Please enter a valid YouTube, Instagram, Facebook, or ShareChat URL.',
       });
     }
 

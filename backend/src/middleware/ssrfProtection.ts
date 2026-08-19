@@ -9,6 +9,16 @@ const ALLOWED_HOSTNAMES = [
   'instagram.com',
   'www.instagram.com',
   'instagr.am',
+  'facebook.com',
+  'www.facebook.com',
+  'm.facebook.com',
+  'web.facebook.com',
+  'fb.watch',
+  'fb.gg',
+  'sharechat.com',
+  'www.sharechat.com',
+  'b.sharechat.com',
+  'link.sharechat.com',
 ];
 
 const BLOCKED_IP_REGEX = /^(127\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|192\.168\.|169\.254\.|0\.|::1)/;
@@ -26,7 +36,7 @@ export function validateMediaUrl(urlStr: string): {
   try {
     parsed = new URL(urlStr.trim());
   } catch {
-    return { valid: false, error: 'Invalid URL format. Please paste a valid YouTube or Instagram link.' };
+    return { valid: false, error: 'Invalid URL format. Please paste a valid YouTube, Instagram, Facebook, or ShareChat link.' };
   }
 
   // Enforce HTTP / HTTPS scheme
@@ -49,7 +59,7 @@ export function validateMediaUrl(urlStr: string): {
   if (!isAllowedHost) {
     return {
       valid: false,
-      error: 'Please enter a valid YouTube or Instagram video link.',
+      error: 'Please enter a valid YouTube, Instagram, Facebook, or ShareChat video link.',
     };
   }
 

@@ -9,9 +9,9 @@ export function FaqSection() {
         'Simply copy the YouTube video link from your browser or app, paste it into the input box above, click "Analyze", select 1080p HD, and click "Download Video". The system automatically fetches and compiles the high-definition video stream.',
     },
     {
-      question: 'Can I download Instagram Reels and YouTube Shorts on my phone?',
+      question: 'Can I download Instagram Reels, Facebook Reels, and ShareChat videos on my phone?',
       answer:
-        'Yes! Jano HD is 100% responsive and mobile-optimized. You can use your mobile phone browser (Safari on iOS or Chrome on Android) to paste Instagram Reel or YouTube Short links directly.',
+        'Yes! Jano HD is 100% responsive and mobile-optimized. You can use your mobile phone browser (Safari on iOS or Chrome on Android) to paste YouTube, Instagram, Facebook, or ShareChat video links directly.',
     },
     {
       question: 'Why do some videos max out at 360p or 720p?',

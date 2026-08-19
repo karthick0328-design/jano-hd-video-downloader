@@ -10,7 +10,7 @@ export function Footer() {
             Jano <span className="gradient-text-videodl-1">HD</span> Engine
           </p>
           <p className="text-slate-500 text-xs max-w-lg leading-relaxed text-center">
-            High-definition media downloader service supporting YouTube Videos, Shorts, and Instagram Reels up to 4K Ultra HD.
+            High-definition media downloader service supporting YouTube, Instagram, Facebook, and ShareChat up to 4K Ultra HD.
           </p>
         </div>
 

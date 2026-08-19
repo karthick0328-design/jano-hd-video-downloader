@@ -18,6 +18,16 @@ describe('URL Validation & SSRF Protection', () => {
     expect(res.valid).toBe(true);
   });
 
+  it('should accept valid Facebook video and Reel URLs', () => {
+    expect(validateMediaUrl('https://www.facebook.com/watch/?v=123456789').valid).toBe(true);
+    expect(validateMediaUrl('https://www.facebook.com/reel/123456789').valid).toBe(true);
+    expect(validateMediaUrl('https://fb.watch/abcdef123').valid).toBe(true);
+  });
+
+  it('should accept valid ShareChat video URLs', () => {
+    expect(validateMediaUrl('https://sharechat.com/post/abcdef123').valid).toBe(true);
+  });
+
   it('should reject private or local network URLs (SSRF protection)', () => {
     expect(validateMediaUrl('http://localhost:5000/api').valid).toBe(false);
     expect(validateMediaUrl('http://127.0.0.1/admin').valid).toBe(false);
@@ -35,12 +45,21 @@ describe('Platform Detection', () => {
   it('should correctly detect YouTube platform', () => {
     expect(DownloaderRegistry.detectPlatform('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('youtube');
     expect(DownloaderRegistry.detectPlatform('https://youtu.be/dQw4w9WgXcQ')).toBe('youtube');
-    expect(DownloaderRegistry.detectPlatform('https://youtube.com/shorts/xyz123')).toBe('youtube');
+    expect(DownloaderRegistry.detectPlatform('https://youtube.com/shorts/xyz123')).toBe('youtube-short');
   });
 
   it('should correctly detect Instagram platform', () => {
-    expect(DownloaderRegistry.detectPlatform('https://www.instagram.com/reel/C1234567890/')).toBe('instagram');
+    expect(DownloaderRegistry.detectPlatform('https://www.instagram.com/reel/C1234567890/')).toBe('instagram-reel');
     expect(DownloaderRegistry.detectPlatform('https://instagram.com/p/B1234567890/')).toBe('instagram');
+  });
+
+  it('should correctly detect Facebook platform', () => {
+    expect(DownloaderRegistry.detectPlatform('https://www.facebook.com/watch/?v=12345')).toBe('facebook');
+    expect(DownloaderRegistry.detectPlatform('https://www.facebook.com/reel/12345')).toBe('facebook-reel');
+  });
+
+  it('should correctly detect ShareChat platform', () => {
+    expect(DownloaderRegistry.detectPlatform('https://sharechat.com/post/xyz123')).toBe('sharechat');
   });
 
   it('should return unknown for unrecognized URLs', () => {

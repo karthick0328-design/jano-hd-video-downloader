@@ -1,4 +1,4 @@
-import { Clock, Film, Instagram, Play, Sparkles, Youtube } from 'lucide-react';
+import { Clock, Facebook, Film, Instagram, Play, Share2, Sparkles, Youtube } from 'lucide-react';
 import { MediaAnalysisResponse } from '../types';
 
 interface MediaPreviewProps {
@@ -56,13 +56,21 @@ export function MediaPreview({ data }: MediaPreviewProps) {
         {/* Video Metadata Information */}
         <div className="flex-1 space-y-3.5 text-center md:text-left flex flex-col items-center md:items-start justify-center">
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
-            {data.platform === 'youtube' ? (
+            {data.platform === 'youtube' || data.platform === 'youtube-short' ? (
               <span className="flex items-center gap-1.5 bg-red-50 text-red-700 border border-red-200 text-xs px-3 py-1 rounded-full font-extrabold tracking-wide">
-                <Youtube className="w-3.5 h-3.5 fill-red-600 text-red-600" /> YouTube Video
+                <Youtube className="w-3.5 h-3.5 fill-red-600 text-red-600" /> {data.platform === 'youtube-short' ? 'YouTube Short' : 'YouTube Video'}
+              </span>
+            ) : data.platform === 'facebook' || data.platform === 'facebook-reel' ? (
+              <span className="flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 text-xs px-3 py-1 rounded-full font-extrabold tracking-wide">
+                <Facebook className="w-3.5 h-3.5 fill-blue-600 text-blue-600" /> {data.platform === 'facebook-reel' ? 'Facebook Reel' : 'Facebook Video'}
+              </span>
+            ) : data.platform === 'sharechat' ? (
+              <span className="flex items-center gap-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs px-3 py-1 rounded-full font-extrabold tracking-wide">
+                <Share2 className="w-3.5 h-3.5 text-indigo-600" /> ShareChat Video
               </span>
             ) : (
               <span className="flex items-center gap-1.5 bg-pink-50 text-pink-700 border border-pink-200 text-xs px-3 py-1 rounded-full font-extrabold tracking-wide">
-                <Instagram className="w-3.5 h-3.5 text-pink-600" /> Instagram Reel
+                <Instagram className="w-3.5 h-3.5 text-pink-600" /> {data.platform === 'instagram-reel' ? 'Instagram Reel' : 'Instagram Video'}
               </span>
             )}
 

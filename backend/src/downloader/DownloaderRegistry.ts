@@ -1,5 +1,7 @@
 import { DownloaderService } from './DownloaderService';
+import { FacebookDownloader } from './facebook/FacebookDownloader';
 import { InstagramDownloader } from './instagram/InstagramDownloader';
+import { ShareChatDownloader } from './sharechat/ShareChatDownloader';
 import { PlatformType } from './types';
 import { YouTubeDownloader } from './youtube/YouTubeDownloader';
 
@@ -7,6 +9,8 @@ export class DownloaderRegistry {
   private static downloaders: DownloaderService[] = [
     new YouTubeDownloader(),
     new InstagramDownloader(),
+    new FacebookDownloader(),
+    new ShareChatDownloader(),
   ];
 
   /**
@@ -27,7 +31,28 @@ export class DownloaderRegistry {
    * Identify platform type from URL
    */
   public static detectPlatform(url: string): PlatformType {
-    const service = this.getService(url);
-    return service ? service.platform : 'unknown';
+    if (!url) return 'unknown';
+    const lower = url.trim().toLowerCase();
+
+    if (lower.includes('youtube.com') || lower.includes('youtu.be')) {
+      if (lower.includes('/shorts/')) return 'youtube-short';
+      return 'youtube';
+    }
+
+    if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
+      if (lower.includes('/reel/') || lower.includes('/reels/')) return 'instagram-reel';
+      return 'instagram';
+    }
+
+    if (lower.includes('facebook.com') || lower.includes('fb.watch') || lower.includes('fb.gg')) {
+      if (lower.includes('/reel/') || lower.includes('/reels/')) return 'facebook-reel';
+      return 'facebook';
+    }
+
+    if (lower.includes('sharechat.com')) {
+      return 'sharechat';
+    }
+
+    return 'unknown';
   }
 }
