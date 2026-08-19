@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { MediaAnalysisResponse, PlatformType, QualityFormat } from '../../types';
+import { ExactMediaExtractor } from './exactMediaExtractor';
 
 const execAsync = promisify(exec);
 
@@ -150,6 +151,11 @@ export class ServerDownloaderService {
     let title = this.getDefaultTitle(platform);
     let thumbnail = '';
     let duration = 0;
+
+    // Call ExactMediaExtractor for real video and audio media stream
+    const exact = await ExactMediaExtractor.extractExactMediaUrl(url, platform);
+    if (exact.title) title = exact.title;
+    if (exact.thumbnail) thumbnail = exact.thumbnail;
 
     // YouTube specific extraction
     if (platform === 'youtube' || platform === 'youtube-short') {
