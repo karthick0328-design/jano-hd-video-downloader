@@ -54,7 +54,7 @@ export function FaqSection() {
           return (
             <div
               key={idx}
-              className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm transition-all"
+              className="bg-white/90 backdrop-blur-md rounded-2xl overflow-hidden border border-slate-200/80 shadow-xs hover:border-slate-300 transition-all"
             >
               <button
                 type="button"

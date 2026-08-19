@@ -44,10 +44,10 @@ export function ResolutionTable() {
         </p>
       </div>
 
-      <div className="bg-white rounded-3xl overflow-hidden border border-slate-200 shadow-md overflow-x-auto w-full">
+      <div className="bg-white/90 backdrop-blur-md rounded-2xl overflow-hidden border border-slate-200/80 shadow-xs overflow-x-auto w-full">
         <table className="w-full text-center border-collapse text-xs sm:text-sm">
           <thead>
-            <tr className="bg-slate-100/90 border-b border-slate-200 text-slate-700 font-extrabold font-mono uppercase tracking-wider text-[11px]">
+            <tr className="bg-slate-50 border-b border-slate-200/80 text-slate-500 font-extrabold font-mono uppercase tracking-wider text-[11px]">
               <th className="py-3.5 px-4 sm:px-6 text-center">Quality</th>
               <th className="py-3.5 px-4 sm:px-6 text-center">Dimensions</th>
               <th className="py-3.5 px-4 sm:px-6 text-center">Best Device</th>
@@ -56,7 +56,7 @@ export function ResolutionTable() {
           </thead>
           <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
             {resolutions.map((r, i) => (
-              <tr key={i} className="hover:bg-slate-50/80 transition-colors">
+              <tr key={i} className="hover:bg-blue-50/40 transition-colors">
                 <td className="py-4 px-4 sm:px-6 font-extrabold text-slate-900 flex items-center justify-center gap-2">
                   {r.icon}
                   <span>{r.quality}</span>
