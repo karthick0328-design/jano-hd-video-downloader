@@ -29,13 +29,17 @@ export class BlobStorageService {
     }
 
     try {
-      const checkRes = await fetch(storageUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Range': 'bytes=0-1024',
-        },
-      });
+      const headers: Record<string, string> = {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Range': 'bytes=0-1024',
+      };
+
+      if (process.env.BLOB_READ_WRITE_TOKEN) {
+        headers['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
+      }
+
+      const checkRes = await fetch(storageUrl, { headers });
 
       const contentType = checkRes.headers.get('content-type') || '';
       const contentLengthStr = checkRes.headers.get('content-length') || checkRes.headers.get('content-range')?.split('/')?.[1];
