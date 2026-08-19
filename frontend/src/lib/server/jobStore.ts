@@ -4,6 +4,7 @@ export interface DownloadJob {
   quality: string;
   format: string;
   title: string;
+  mediaUrl?: string;
   status: 'queued' | 'processing' | 'merging' | 'completed' | 'failed';
   progress: number;
   fileSize?: number;
@@ -21,7 +22,8 @@ export class JobStoreService {
     url: string,
     quality: string,
     format: string,
-    title: string
+    title: string,
+    mediaUrl?: string
   ): Promise<DownloadJob> {
     const job: DownloadJob = {
       jobId,
@@ -29,9 +31,11 @@ export class JobStoreService {
       quality,
       format,
       title,
-      status: 'queued',
-      progress: 0,
+      mediaUrl,
+      status: 'completed',
+      progress: 100,
       createdAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
     };
     jobStore.set(jobId, job);
     return job;
