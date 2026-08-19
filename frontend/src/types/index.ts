@@ -26,6 +26,7 @@ export interface MediaAnalysisResponse {
   normalizedUrl: string;
   platform: PlatformType;
   mediaId?: string; // reelId or videoId
+  mediaUrl?: string; // extracted direct media stream URL
   title: string;
   thumbnail: string;
   duration: number;

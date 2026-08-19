@@ -245,6 +245,7 @@ export class ServerDownloaderService {
       normalizedUrl,
       platform,
       mediaId,
+      mediaUrl: exact.mediaUrl || undefined,
       title: title || this.getDefaultTitle(platform),
       thumbnail,
       duration,

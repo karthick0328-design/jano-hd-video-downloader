@@ -25,12 +25,13 @@ export async function triggerDownload(
   quality: string,
   format: string = 'mp4',
   title: string = '',
-  formatId?: string
+  formatId?: string,
+  mediaUrl?: string
 ): Promise<CreateDownloadResponse> {
   const res = await fetch(`${API_BASE}/download`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url, quality, format, title, formatId }),
+    body: JSON.stringify({ url, quality, format, title, formatId, mediaUrl }),
   });
 
   const data = await res.json();

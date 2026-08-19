@@ -90,7 +90,8 @@ export default function HomePage() {
           topQuality,
           'mp4',
           result.title,
-          topFormatId
+          topFormatId,
+          result.mediaUrl
         );
 
         if (res.success) {
@@ -141,7 +142,8 @@ export default function HomePage() {
         selectedQuality,
         'mp4',
         analysisResult.title,
-        selectedFormatId
+        selectedFormatId,
+        analysisResult.mediaUrl
       );
 
       if (res.success) {
