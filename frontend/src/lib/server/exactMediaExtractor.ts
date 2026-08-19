@@ -56,7 +56,7 @@ export class ExactMediaExtractor {
     } catch (e) {
       // ignore error
     }
-    return { mediaUrl: null, mediaId };
+    return { mediaUrl: norm.normalizedUrl || url, mediaId };
   }
 
   private static async extractYouTube(url: string, mediaId?: string) {
@@ -105,6 +105,15 @@ export class ExactMediaExtractor {
           }
         } catch (e) {}
       }
+    }
+
+    if (videoId) {
+      return {
+        mediaUrl: `https://www.youtube.com/watch?v=${videoId}`,
+        title,
+        thumbnail,
+        mediaId: videoId,
+      };
     }
 
     return { mediaUrl: null, title, thumbnail, mediaId: videoId || undefined };
