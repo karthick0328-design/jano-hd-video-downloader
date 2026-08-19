@@ -56,10 +56,12 @@ export class BlobStorageService {
         storageUrl.includes('fbcdn.net') ||
         storageUrl.includes('googlevideo.com') ||
         storageUrl.includes('ytimg.com') ||
+        storageUrl.includes('youtube.com') ||
+        storageUrl.includes('youtu.be') ||
         storageUrl.includes('sharechat.com') ||
         storageUrl.includes('.mp4')
       ) {
-        console.log(`[STORAGE_VERIFIED] Accepted direct CDN stream URL: ${storageUrl}`);
+        console.log(`[STORAGE_VERIFIED] Accepted direct stream URL: ${storageUrl}`);
         return { verified: true, fileSize: 0 };
       }
     } catch (e) {
