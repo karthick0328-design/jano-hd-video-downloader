@@ -83,11 +83,21 @@ export class MediaController {
         formatId,
       });
 
+      const safeTitle = (title || 'Video')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .substring(0, 40);
+
+      const downloadUrl = `/api/download/${jobId}/file?u=${encodeURIComponent(norm.normalizedUrl || url)}&q=${quality}`;
+
       return res.status(202).json({
         success: true,
         jobId,
         normalizedUrl: norm.normalizedUrl,
         mediaId: norm.mediaId,
+        downloadUrl,
+        filename: `JANO_HD_${safeTitle}_${quality}.mp4`,
         message: 'Download job queued successfully.',
       });
     } catch (err: any) {
@@ -116,6 +126,9 @@ export class MediaController {
     const isCompleted = job.status === 'completed';
     const isFailed = job.status === 'failed';
 
+    const targetUrl = (job as any).normalizedUrl || job.sourceUrl || '';
+    const downloadUrl = `/api/download/${job.jobId}/file?u=${encodeURIComponent(targetUrl)}&q=${job.quality}`;
+
     return res.json({
       success: true,
       jobId: job.jobId,
@@ -125,7 +138,7 @@ export class MediaController {
       quality: job.quality,
       format: job.format,
       fileSize: job.fileSize || 0,
-      downloadUrl: isCompleted ? `/api/download/${job.jobId}/file` : null,
+      downloadUrl: isCompleted ? downloadUrl : null,
       error: isFailed ? job.errorMessage || 'Download processing failed.' : null,
       completedAt: job.completedAt,
       expiresAt: job.expiresAt,
@@ -137,34 +150,33 @@ export class MediaController {
    */
   public static async downloadFile(req: Request, res: Response) {
     const { jobId } = req.params;
+    const fallbackUrl = req.query.u ? (req.query.u as string) : '';
     const job = await JobService.getJob(jobId);
 
-    if (!job || job.status !== 'completed' || !job.filePath) {
-      return res.status(404).json({
-        success: false,
-        error: 'Download file not available or has expired. Please analyze the URL again.',
-      });
+    if (job && job.status === 'completed' && job.filePath && fs.existsSync(job.filePath)) {
+      const normalizedFilePath = path.normalize(job.filePath);
+      const safeTitle = (job.title || 'Video')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .substring(0, 40);
+
+      const filename = `JANO_HD_${safeTitle}_${job.quality || '1080p'}.${job.format || 'mp4'}`;
+
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Type', 'video/mp4');
+
+      const fileStream = fs.createReadStream(normalizedFilePath);
+      return fileStream.pipe(res);
     }
 
-    // Section 12 Requirement: Verify job path isolation
-    const normalizedFilePath = path.normalize(job.filePath);
-    if (!fs.existsSync(normalizedFilePath)) {
-      return res.status(410).json({
-        success: false,
-        error: 'Temporary download file has expired and been cleaned up.',
-      });
+    // Stateless fallback: Redirect directly to normalized video URL if file is not on local worker
+    if (fallbackUrl && (fallbackUrl.startsWith('http://') || fallbackUrl.startsWith('https://'))) {
+      return res.redirect(302, fallbackUrl);
     }
 
-    const safeTitle = (job.title || 'video')
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .substring(0, 60);
-
-    const filename = `JANO_HD_${safeTitle}_${job.quality || '1080p'}.${job.format || 'mp4'}`;
-
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', 'video/mp4');
-
-    const fileStream = fs.createReadStream(normalizedFilePath);
-    fileStream.pipe(res);
+    // Never return JSON for file download requests
+    res.setHeader('Content-Type', 'text/plain');
+    return res.status(404).send('Download file not available. Please analyze the URL again.');
   }
 }
