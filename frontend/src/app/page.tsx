@@ -102,7 +102,7 @@ export default function HomePage() {
             title: result.title,
             quality: topQuality,
             format: 'mp4',
-            downloadUrl: `/api/download/${res.jobId}/file`,
+            downloadUrl: res.downloadUrl || `/api/download/${res.jobId}/file`,
           };
           setActiveJob(initialJobStatus);
 
@@ -153,7 +153,7 @@ export default function HomePage() {
           title: analysisResult.title,
           quality: selectedQuality,
           format: 'mp4',
-          downloadUrl: `/api/download/${res.jobId}/file`,
+          downloadUrl: res.downloadUrl || `/api/download/${res.jobId}/file`,
         };
         setActiveJob(initialJobStatus);
 

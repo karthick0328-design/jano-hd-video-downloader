@@ -37,9 +37,14 @@ export interface MediaAnalysisResponse {
 export interface CreateDownloadResponse {
   success: boolean;
   jobId: string;
+  normalizedUrl?: string;
+  mediaId?: string;
+  downloadUrl?: string;
+  filename?: string;
   message?: string;
   error?: string;
 }
+
 
 export type JobStatus =
   | 'queued'
