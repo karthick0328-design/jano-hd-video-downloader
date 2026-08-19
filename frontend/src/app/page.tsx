@@ -70,7 +70,7 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [activeJob]);
 
-  // Handle URL Analysis & Automatic Download Trigger
+  // Handle URL Analysis
   const handleAnalyze = async (url: string) => {
     setIsAnalyzing(true);
     setAnalysisError(null);
@@ -81,45 +81,6 @@ export default function HomePage() {
       const result = await analyzeUrl(url);
       if (result.success) {
         setAnalysisResult(result);
-        const topQuality = result.maxAvailableQuality || '1080p';
-        const topFormatId = result.formats && result.formats.length > 0 ? result.formats[0].formatId : undefined;
-
-        // Automatically trigger download job for immediate mobile download
-        const res = await triggerDownload(
-          result.url,
-          topQuality,
-          'mp4',
-          result.title,
-          topFormatId,
-          result.mediaUrl
-        );
-
-        if (res.success) {
-          const initialJobStatus: JobStatusResponse = {
-            success: true,
-            jobId: res.jobId,
-            status: 'completed',
-            progress: 100,
-            title: result.title,
-            quality: topQuality,
-            format: 'mp4',
-            downloadUrl: res.downloadUrl || `/api/download/${res.jobId}/file`,
-          };
-          setActiveJob(initialJobStatus);
-
-          saveHistory({
-            id: res.jobId,
-            url: result.url,
-            platform: result.platform,
-            title: result.title,
-            thumbnail: result.thumbnail,
-            quality: topQuality,
-            downloadedAt: new Date().toISOString(),
-          });
-        } else {
-          setActiveJob(null);
-          setAnalysisError(res.error || 'Unable to verify or retrieve media stream for this link.');
-        }
       } else {
         setActiveJob(null);
         setAnalysisError(result.error || 'Unable to inspect URL. Please verify the link.');
