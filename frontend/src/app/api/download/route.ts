@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { ServerDownloaderService } from '../../../lib/server/downloaderRegistry';
+import { ExactMediaExtractor } from '../../../lib/server/exactMediaExtractor';
 import { JobStoreService } from '../../../lib/server/jobStore';
 import { normalizeAndExtractMediaInfo } from '../../../lib/server/urlNormalizer';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { url, quality = '1080p', format = 'mp4', title = '', mediaUrl } = body || {};
+    let { url, quality = '1080p', format = 'mp4', title = '', mediaUrl } = body || {};
 
     const norm = normalizeAndExtractMediaInfo(url);
     if (!norm.isValid) {
@@ -15,14 +17,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedUrl = norm.normalizedUrl;
+    const platform = norm.platform;
+    const mediaId = norm.mediaId;
+
+    // Resolve direct media stream URL if missing
+    if (!mediaUrl) {
+      const exact = await ExactMediaExtractor.extractExactMediaUrl(normalizedUrl, platform);
+      if (exact && exact.mediaUrl) {
+        mediaUrl = exact.mediaUrl;
+        if (!title && exact.title) title = exact.title;
+      } else {
+        const analysis = await ServerDownloaderService.analyzeUrl(normalizedUrl);
+        if (analysis && analysis.success) {
+          if (!title) title = analysis.title;
+        }
+      }
+    }
+
     const job = await JobStoreService.createJob(
       url,
-      norm.normalizedUrl,
+      normalizedUrl,
       quality,
       format,
       title,
-      norm.mediaId,
-      norm.platform,
+      mediaId,
+      platform,
       mediaUrl
     );
 
@@ -30,8 +50,8 @@ export async function POST(req: NextRequest) {
       {
         success: true,
         jobId: job.jobId,
-        normalizedUrl: norm.normalizedUrl,
-        mediaId: norm.mediaId,
+        normalizedUrl,
+        mediaId,
         message: 'Download job created successfully.',
       },
       { status: 202 }
