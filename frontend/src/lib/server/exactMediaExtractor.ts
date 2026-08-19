@@ -98,6 +98,33 @@ export class ExactMediaExtractor {
       } catch (e) {}
     }
 
+    const apiKey = process.env.RAPIDAPI_KEY || 'adad1ed563msh0f60216ba743677p16798bjsn5796797e67b6';
+    if (videoId && apiKey) {
+      try {
+        const rapidRes = await fetch(`https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=${videoId}`, {
+          headers: {
+            'x-rapidapi-host': 'youtube-media-downloader.p.rapidapi.com',
+            'x-rapidapi-key': apiKey,
+          },
+        });
+        if (rapidRes.ok) {
+          const rData = await rapidRes.json();
+          if (rData.title) title = rData.title;
+          const videoItems = Array.isArray(rData.videos) ? rData.videos : (rData.videos?.items || []);
+          for (const f of videoItems) {
+            if (f.url && (f.extension === 'mp4' || f.mimeType?.includes('mp4'))) {
+              return {
+                mediaUrl: f.url,
+                title,
+                thumbnail,
+                mediaId: videoId,
+              };
+            }
+          }
+        }
+      } catch (e) {}
+    }
+
     if (videoId) {
       const instances = [
         `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
