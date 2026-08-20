@@ -49,9 +49,28 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       setDownloadError(null);
 
       const targetUrl = getFullDownloadUrl(job.downloadUrl);
-      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Triggering server-proxied video download:', targetUrl);
+      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Probing video stream availability:', targetUrl);
 
-      // Trigger direct server-proxied MP4 browser download
+      // 1. Probe stream endpoint first to prevent browser download shelf errors ("File wasn't available on site")
+      const probeRes = await fetch(targetUrl, {
+        method: 'GET',
+        headers: { Range: 'bytes=0-10' },
+      });
+
+      const contentType = probeRes.headers.get('content-type') || '';
+      if (!probeRes.ok || contentType.includes('application/json') || contentType.includes('text/html')) {
+        let errorMsg =
+          'Video stream expired or access denied by source provider. Please click "New Link" and try again.';
+        try {
+          const json = await probeRes.json();
+          if (json.error) errorMsg = json.error;
+        } catch (e) {}
+        setDownloadError(errorMsg);
+        setDownloading(false);
+        return;
+      }
+
+      // 2. Stream verified! Trigger direct MP4 browser download
       const link = document.createElement('a');
       link.href = targetUrl;
       link.setAttribute('download', `${job.title || 'Video'}.mp4`);
@@ -62,7 +81,7 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       console.error('[FRONTEND_DOWNLOAD_ERROR]', err);
       setDownloadError(err.message || 'Failed to download video file.');
     } finally {
-      setTimeout(() => setDownloading(false), 2500);
+      setTimeout(() => setDownloading(false), 2000);
     }
   };
 
