@@ -63,6 +63,8 @@ export class YtDlpWrapper {
   public static async dumpJson(url: string): Promise<YtDlpDumpJson> {
     const args = [
       ...this.getExtraArgs(),
+      '--extractor-args',
+      'youtube:player_client=android',
       '--dump-json',
       '--no-warnings',
       '--no-call-home',
