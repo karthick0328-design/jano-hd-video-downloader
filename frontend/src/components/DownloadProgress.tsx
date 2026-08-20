@@ -49,9 +49,22 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       setDownloadError(null);
 
       const targetUrl = getFullDownloadUrl(job.downloadUrl);
-      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Checking stream availability:', targetUrl);
+      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Triggering video download:', targetUrl);
 
-      // Probe stream URL to catch JSON/HTML errors before browser triggers file download
+      // 1. Direct external CDN Stream URLs (googlevideo, cdninstagram, fbcdn, etc.)
+      if (job.downloadUrl.startsWith('http://') || job.downloadUrl.startsWith('https://')) {
+        const link = document.createElement('a');
+        link.href = job.downloadUrl;
+        link.setAttribute('download', `${job.title || 'Video'}.mp4`);
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+
+      // 2. Local API proxy endpoints (/api/download/[jobId]/file)
       const checkRes = await fetch(targetUrl, {
         method: 'GET',
         headers: { Range: 'bytes=0-10' },
