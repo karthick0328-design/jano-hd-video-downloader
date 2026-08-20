@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { get } from '@vercel/blob';
 import { generateSafeFilename } from '../../../../../lib/server/blobStorage';
 import { ExactMediaExtractor } from '../../../../../lib/server/exactMediaExtractor';
 import { JobStoreService } from '../../../../../lib/server/jobStore';
@@ -44,6 +45,33 @@ export async function GET(
   );
 
   const fetchStream = async (url: string) => {
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN;
+
+    // Handle Private Vercel Blob store URLs via SDK get()
+    if (url.includes('private.blob.vercel-storage.com') && blobToken) {
+      try {
+        console.log('[PRIVATE_BLOB_FETCH] Fetching private blob stream via @vercel/blob SDK...');
+        const privateResult = await get(url, { access: 'private', token: blobToken });
+        if (privateResult && privateResult.stream) {
+          const resHeaders = new Headers();
+          if (privateResult.headers) {
+            Object.entries(privateResult.headers).forEach(([k, v]) => {
+              if (v) resHeaders.set(k, String(v));
+            });
+          }
+          resHeaders.set('Content-Type', 'video/mp4');
+          resHeaders.set('Content-Disposition', `attachment; filename="${filename}"`);
+
+          return new Response(privateResult.stream as any, {
+            status: privateResult.statusCode || 200,
+            headers: resHeaders,
+          });
+        }
+      } catch (privErr: any) {
+        console.error('[PRIVATE_BLOB_FETCH_ERROR]', privErr.message);
+      }
+    }
+
     const fetchHeaders: Record<string, string> = {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -60,7 +88,6 @@ export async function GET(
       fetchHeaders['Referer'] = 'https://www.facebook.com/';
     }
 
-    const blobToken = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN;
     if (blobToken) {
       fetchHeaders['Authorization'] = `Bearer ${blobToken}`;
     }
