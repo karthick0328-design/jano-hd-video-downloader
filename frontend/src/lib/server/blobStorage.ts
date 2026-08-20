@@ -35,6 +35,15 @@ export class BlobStorageService {
         'Range': 'bytes=0-1024',
       };
 
+      if (storageUrl.includes('googlevideo.com') || storageUrl.includes('youtube.com') || storageUrl.includes('youtu.be')) {
+        headers['Referer'] = 'https://www.youtube.com/';
+        headers['Origin'] = 'https://www.youtube.com/';
+      } else if (storageUrl.includes('instagram.com') || storageUrl.includes('cdninstagram.com')) {
+        headers['Referer'] = 'https://www.instagram.com/';
+      } else if (storageUrl.includes('facebook.com') || storageUrl.includes('fbcdn.net')) {
+        headers['Referer'] = 'https://www.facebook.com/';
+      }
+
       if (process.env.BLOB_READ_WRITE_TOKEN) {
         headers['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
       }

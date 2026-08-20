@@ -81,7 +81,7 @@ export async function GET(
         `[STREAM_FETCH_WARN] Direct fetch returned status ${videoRes.status}. Attempting fresh stream re-extraction...`
       );
       const job = await JobStoreService.getJob(jobId);
-      const targetUrl = job?.url || job?.normalizedUrl || searchParams.get('u');
+      const targetUrl = searchParams.get('u') || job?.url || job?.normalizedUrl;
       if (targetUrl) {
         const norm = normalizeAndExtractMediaInfo(targetUrl);
         const refreshed = await ExactMediaExtractor.extractExactMediaUrl(
