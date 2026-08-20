@@ -114,19 +114,38 @@ export class ExactMediaExtractor {
         if (rapidRes.ok) {
           const rData = await rapidRes.json();
           if (rData.title) title = rData.title;
+          if (rData.thumbnails && rData.thumbnails.length > 0) {
+            thumbnail = rData.thumbnails[rData.thumbnails.length - 1].url || thumbnail;
+          }
+
           const videoItems = Array.isArray(rData.videos)
             ? rData.videos
             : rData.videos?.items || rData.formats || [];
-          for (const f of videoItems) {
-            const streamLink = f.url || f.link || f.downloadUrl;
-            if (streamLink && (f.extension === 'mp4' || f.mimeType?.includes('mp4') || f.container === 'mp4' || !f.extension)) {
-              return {
-                mediaUrl: streamLink,
-                title,
-                thumbnail,
-                mediaId: videoId,
-              };
-            }
+
+          // 1. Prioritize MP4 formats with both video and audio
+          const withAudio = videoItems.find(
+            (f: any) =>
+              (f.url || f.link || f.downloadUrl) &&
+              f.hasAudio === true &&
+              (f.extension === 'mp4' || f.mimeType?.includes('mp4') || f.container === 'mp4' || !f.extension)
+          );
+
+          // 2. Fallback to any MP4 format
+          const anyMp4 = videoItems.find(
+            (f: any) =>
+              (f.url || f.link || f.downloadUrl) &&
+              (f.extension === 'mp4' || f.mimeType?.includes('mp4') || f.container === 'mp4' || !f.extension)
+          );
+
+          const selected = withAudio || anyMp4;
+          if (selected) {
+            const streamLink = selected.url || selected.link || selected.downloadUrl;
+            return {
+              mediaUrl: streamLink,
+              title,
+              thumbnail,
+              mediaId: videoId,
+            };
           }
         }
       } catch (e) {}
