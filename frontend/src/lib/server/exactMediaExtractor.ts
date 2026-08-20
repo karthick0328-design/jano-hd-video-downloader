@@ -29,8 +29,13 @@ export class ExactMediaExtractor {
             return { mediaUrl: null };
           }
 
-          const streamUrl = dump.url || (dump.formats && dump.formats.find((f: any) => f.vcodec !== 'none' && f.acodec !== 'none')?.url);
+          const streamObj =
+            (dump.formats && dump.formats.find((f: any) => f.format_id === '18' && f.url)) ||
+            (dump.formats && dump.formats.find((f: any) => f.vcodec && f.vcodec !== 'none' && f.acodec && f.acodec !== 'none' && f.url));
+
+          const streamUrl = streamObj?.url || dump.url;
           if (streamUrl) {
+            console.log(`[YTDLP_SUCCESS] Extracted combined stream (format_id ${streamObj?.format_id || 'dump.url'}) for video ${mediaId || dump.id}`);
             return {
               mediaUrl: streamUrl,
               title: dump.title,
@@ -121,15 +126,14 @@ export class ExactMediaExtractor {
           const adaptiveFormats = ytData.adaptiveFormats || [];
           const allFormats = [...combinedFormats, ...adaptiveFormats];
 
+          // Strictly require progressive formats that contain BOTH video and audio tracks (itag 18, 22, 59, 78 or combined)
           const bestFormat =
             combinedFormats.find((f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
-            allFormats.find((f: any) => f.url && f.audioQuality && f.audioQuality !== 'NONE' && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
-            allFormats.find((f: any) => f.url && f.hasAudio === true) ||
-            allFormats.find((f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
-            allFormats[0];
+            allFormats.find((f: any) => f.url && [18, 22, 59, 78, 43, 36].includes(f.itag)) ||
+            allFormats.find((f: any) => f.url && f.hasAudio === true && f.vcodec !== 'none' && f.acodec !== 'none');
 
           if (bestFormat && bestFormat.url) {
-            console.log(`[YT_API_SUCCESS] Extracted stream from yt-api for video ${videoId}`);
+            console.log(`[YT_API_SUCCESS] Extracted playable combined stream (itag ${bestFormat.itag}) from yt-api for video ${videoId}`);
             return {
               mediaUrl: bestFormat.url,
               title,
