@@ -1,0 +1,9 @@
+{
+  "name": "jano-hd-video-downloader-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd backend && npm install && npm run build",
+    "start": "cd backend && node dist/server.js"
+  }
+}

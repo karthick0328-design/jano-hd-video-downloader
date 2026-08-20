@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: jano-hd-backend
+    env: docker
+    dockerfilePath: Dockerfile.backend
+    region: oregon
+    plan: free
+    healthCheckPath: /api/health
