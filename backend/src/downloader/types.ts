@@ -13,6 +13,7 @@ export interface QualityFormat {
   height: number;
   format: string; // e.g., 'mp4', 'webm'
   formatId: string;
+  url?: string;
   hasVideo: boolean;
   hasAudio: boolean;
   needsMerge: boolean;

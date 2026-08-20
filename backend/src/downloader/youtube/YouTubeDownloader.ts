@@ -83,6 +83,7 @@ export class YouTubeDownloader extends DownloaderService {
             height,
             format: 'mp4',
             formatId: fmt.format_id,
+            url: fmt.url,
             hasVideo: true,
             hasAudio,
             needsMerge: !hasAudio,
