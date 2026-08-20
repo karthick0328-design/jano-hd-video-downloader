@@ -14,6 +14,38 @@ export class ExactMediaExtractor {
     const mediaId = norm.mediaId;
 
     try {
+      // 0. Try YOUTUBE_MICROSERVICE_URL (Render Python Microservice) if configured
+      const microserviceUrl = process.env.YOUTUBE_MICROSERVICE_URL;
+      if (microserviceUrl) {
+        try {
+          console.log(`[MICROSERVICE_FETCH] Querying Python Microservice on Render: ${microserviceUrl}`);
+          const microRes = await fetch(`${microserviceUrl.replace(/\/$/, '')}/api/media/analyze`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: norm.normalizedUrl || url }),
+          });
+
+          if (microRes.ok) {
+            const microData = await microRes.json();
+            if (microData && microData.formats && microData.formats.length > 0) {
+              const bestStream = microData.formats.find((f: any) => f.hasAudio && f.hasVideo) || microData.formats[0];
+              const streamUrl = bestStream.url || microData.downloadUrl;
+              if (streamUrl) {
+                console.log(`[MICROSERVICE_SUCCESS] Extracted stream via Render Python microservice`);
+                return {
+                  mediaUrl: streamUrl,
+                  title: microData.title,
+                  thumbnail: microData.thumbnail,
+                  mediaId,
+                };
+              }
+            }
+          }
+        } catch (mErr: any) {
+          console.error('[MICROSERVICE_FETCH_ERROR]', mErr.message);
+        }
+      }
+
       // 1. Try yt-dlp if available on host (e.g. local or server worker environment)
       try {
         const { stdout } = await execAsync(`python -m yt_dlp --dump-json --no-warnings -- "${norm.normalizedUrl || url}"`, {
