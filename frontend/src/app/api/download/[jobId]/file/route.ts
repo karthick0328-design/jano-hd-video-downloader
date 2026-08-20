@@ -60,8 +60,9 @@ export async function GET(
       fetchHeaders['Referer'] = 'https://www.facebook.com/';
     }
 
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      fetchHeaders['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN;
+    if (blobToken) {
+      fetchHeaders['Authorization'] = `Bearer ${blobToken}`;
     }
 
     const clientRange = req.headers.get('range');

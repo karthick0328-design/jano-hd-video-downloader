@@ -44,8 +44,9 @@ export class BlobStorageService {
         headers['Referer'] = 'https://www.facebook.com/';
       }
 
-      if (process.env.BLOB_READ_WRITE_TOKEN) {
-        headers['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
+      const blobToken = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN;
+      if (blobToken) {
+        headers['Authorization'] = `Bearer ${blobToken}`;
       }
 
       const checkRes = await fetch(storageUrl, { headers });
@@ -91,8 +92,10 @@ export class BlobStorageService {
   ): Promise<StorageUploadResult> {
     const filename = generateSafeFilename(title, quality);
 
-    // 1. Try Vercel Blob Storage if BLOB_READ_WRITE_TOKEN is configured
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_READ_WRITE_TOKEN_READ_WRITE_TOKEN;
+
+    // 1. Try Vercel Blob Storage if token is configured
+    if (blobToken) {
       try {
         console.log(`[STORAGE] Uploading MP4 to Vercel Blob: jobs/${jobId}/${filename}`);
 
@@ -116,12 +119,14 @@ export class BlobStorageService {
           blob = await put(`jobs/${jobId}/${filename}`, contentToUpload, {
             access: 'public',
             contentType: 'video/mp4',
+            token: blobToken,
           });
         } catch (pubErr: any) {
           console.warn('[STORAGE] Public access put failed, trying private store access:', pubErr.message);
           blob = await put(`jobs/${jobId}/${filename}`, contentToUpload, {
             access: 'private',
             contentType: 'video/mp4',
+            token: blobToken,
           });
         }
 
