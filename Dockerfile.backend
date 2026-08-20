@@ -1,19 +1,21 @@
-FROM node:20-alpine
+FROM node:20-slim
 
-# Install Python, yt-dlp, and ffmpeg system packages
-RUN apk add --no-cache \
+# Install Python3, pip, ffmpeg, and curl
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
-    py3-pip \
+    python3-pip \
     ffmpeg \
-    ca-certificates
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install yt-dlp globally
-RUN python3 -m pip install --no-cache-dir --break-system-packages yt-dlp
+# Install yt-dlp globally via pip
+RUN pip3 install --no-cache-dir --break-system-packages yt-dlp || pip3 install --no-cache-dir yt-dlp
 
 WORKDIR /app
 
 COPY backend/package*.json ./
-RUN npm ci
+RUN npm install
 
 COPY backend/ ./
 
