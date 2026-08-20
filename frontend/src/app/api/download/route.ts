@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           jobId: tempJob.jobId,
-          error: 'Unable to retrieve the exact requested video stream. Please verify the link.',
+          error: 'RapidAPI monthly limit reached or video unavailable. Please add your fresh free RAPIDAPI_KEY in Vercel settings.',
         },
         { status: 422 }
       );

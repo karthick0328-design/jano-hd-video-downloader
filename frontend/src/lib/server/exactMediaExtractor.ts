@@ -111,6 +111,10 @@ export class ExactMediaExtractor {
             },
           }
         );
+        if (rapidRes.status === 429) {
+          console.warn('[RAPIDAPI_QUOTA_EXCEEDED] The RapidAPI key has reached its monthly quota limit.');
+        }
+
         if (rapidRes.ok) {
           const rData = await rapidRes.json();
           if (rData.title) title = rData.title;
