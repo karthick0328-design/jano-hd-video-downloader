@@ -234,7 +234,7 @@ export class YtDlpWrapper {
         url,
         outputTemplate,
         formatSpec,
-        ['--extractor-args', 'youtube:player_client=tv_html5,tv_embedded,creator'],
+        ['--extractor-args', 'youtube:player_client=tv_html5,creator'],
         onProgress
       );
     } catch (err: any) {
