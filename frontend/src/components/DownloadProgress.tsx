@@ -39,6 +39,9 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
   const isFailed = job.status === 'failed' || !!downloadError;
 
   const handleDownload = async () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('show-floating-balls'));
+    }
     if (!job.downloadUrl) return;
 
     try {

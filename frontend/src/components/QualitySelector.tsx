@@ -21,6 +21,9 @@ export function QualitySelector({
   const selectedFormatObj = formats.find((f) => f.quality === selectedQuality);
 
   const handleDownloadClick = () => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('show-floating-balls'));
+    }
     onDownload(selectedQuality, selectedFormatObj?.formatId);
   };
 

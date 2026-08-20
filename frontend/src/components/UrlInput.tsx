@@ -17,6 +17,9 @@ export function UrlInput({ onAnalyze, isLoading, error }: UrlInputProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (url.trim() && !isLoading) {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('show-floating-balls'));
+      }
       onAnalyze(url.trim());
     }
   };

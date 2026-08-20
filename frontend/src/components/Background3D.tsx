@@ -1,11 +1,35 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export function Background3D() {
+  const [isVisible, setIsVisible] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
+    const handleShowBalls = () => {
+      setIsVisible(true);
+    };
+
+    const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('.btn-apple')) {
+        setIsVisible(true);
+      }
+    };
+
+    window.addEventListener('show-floating-balls', handleShowBalls);
+    document.addEventListener('click', handleGlobalClick);
+
+    return () => {
+      window.removeEventListener('show-floating-balls', handleShowBalls);
+      document.removeEventListener('click', handleGlobalClick);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -294,12 +318,14 @@ export function Background3D() {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [isVisible]);
+
+  if (!isVisible) return null;
 
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 w-full h-full z-[0] pointer-events-auto cursor-pointer opacity-80"
+      className="fixed inset-0 w-full h-full z-[0] pointer-events-auto cursor-pointer opacity-80 transition-opacity duration-700 animate-fadeIn"
     />
   );
 }
