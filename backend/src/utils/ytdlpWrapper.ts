@@ -225,12 +225,12 @@ export class YtDlpWrapper {
     }
 
     try {
-      // Primary download attempt
+      // Primary download attempt with tv_embedded,android player clients
       return await this.executeSingleDownload(
         url,
         outputTemplate,
         formatSpec,
-        [],
+        ['--extractor-args', 'youtube:player_client=tv_embedded,android'],
         onProgress
       );
     } catch (err: any) {
