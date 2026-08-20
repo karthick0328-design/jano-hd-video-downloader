@@ -68,7 +68,7 @@ export class YtDlpWrapper {
     const args = [
       ...this.getExtraArgs(),
       '--extractor-args',
-      'youtube:player_client=tv_embedded,android_embedded',
+      'youtube:player_client=tv_html5,tv_embedded,creator',
       '--dump-json',
       '--no-warnings',
       '--no-playlist',
@@ -234,7 +234,7 @@ export class YtDlpWrapper {
         url,
         outputTemplate,
         formatSpec,
-        ['--extractor-args', 'youtube:player_client=tv_embedded,android_embedded'],
+        ['--extractor-args', 'youtube:player_client=tv_html5,tv_embedded,creator'],
         onProgress
       );
     } catch (err: any) {
