@@ -68,7 +68,7 @@ export class YtDlpWrapper {
     const args = [
       ...this.getExtraArgs(),
       '--extractor-args',
-      'youtube:player_client=tv_html5,tv_embedded,creator',
+      'youtube:player_client=tv_html5,creator',
       '--dump-json',
       '--no-warnings',
       '--no-playlist',
