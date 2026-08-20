@@ -126,14 +126,16 @@ export class ExactMediaExtractor {
           const adaptiveFormats = ytData.adaptiveFormats || [];
           const allFormats = [...combinedFormats, ...adaptiveFormats];
 
-          // Strictly require progressive formats that contain BOTH video and audio tracks (itag 18, 22, 59, 78 or combined)
+          // Strictly prioritize progressive combined formats, then fallback to best available MP4 stream
           const bestFormat =
             combinedFormats.find((f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
             allFormats.find((f: any) => f.url && [18, 22, 59, 78, 43, 36].includes(f.itag)) ||
-            allFormats.find((f: any) => f.url && f.hasAudio === true && f.vcodec !== 'none' && f.acodec !== 'none');
+            allFormats.find((f: any) => f.url && f.hasAudio === true && f.vcodec !== 'none' && f.acodec !== 'none') ||
+            allFormats.find((f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
+            allFormats.find((f: any) => f.url);
 
           if (bestFormat && bestFormat.url) {
-            console.log(`[YT_API_SUCCESS] Extracted playable combined stream (itag ${bestFormat.itag}) from yt-api for video ${videoId}`);
+            console.log(`[YT_API_SUCCESS] Extracted stream (itag ${bestFormat.itag || 'default'}) from yt-api for video ${videoId}`);
             return {
               mediaUrl: bestFormat.url,
               title,
