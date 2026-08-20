@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateSafeFilename } from '../../../../../lib/server/blobStorage';
+import { ExactMediaExtractor } from '../../../../../lib/server/exactMediaExtractor';
 import { JobStoreService } from '../../../../../lib/server/jobStore';
+import { normalizeAndExtractMediaInfo } from '../../../../../lib/server/urlNormalizer';
 
 export async function GET(
   req: NextRequest,
@@ -41,66 +43,102 @@ export async function GET(
     `[FILE_DOWNLOAD_REQUEST] [JOB] ${jobId} [MEDIA_URL] ${mediaStreamUrl} [FILENAME] ${filename}`
   );
 
-  try {
+  const fetchStream = async (url: string) => {
     const fetchHeaders: Record<string, string> = {
       'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Accept': '*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
     };
+
+    if (url.includes('googlevideo.com') || url.includes('youtube.com') || url.includes('youtu.be')) {
+      fetchHeaders['Referer'] = 'https://www.youtube.com/';
+      fetchHeaders['Origin'] = 'https://www.youtube.com/';
+    } else if (url.includes('instagram.com') || url.includes('cdninstagram.com')) {
+      fetchHeaders['Referer'] = 'https://www.instagram.com/';
+    } else if (url.includes('facebook.com') || url.includes('fbcdn.net')) {
+      fetchHeaders['Referer'] = 'https://www.facebook.com/';
+    }
 
     if (process.env.BLOB_READ_WRITE_TOKEN) {
       fetchHeaders['Authorization'] = `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}`;
     }
 
-    const videoRes = await fetch(mediaStreamUrl, {
-      headers: fetchHeaders,
-    });
+    const clientRange = req.headers.get('range');
+    if (clientRange) {
+      fetchHeaders['Range'] = clientRange;
+    }
+
+    return await fetch(url, { headers: fetchHeaders });
+  };
+
+  try {
+    let videoRes = await fetchStream(mediaStreamUrl);
+
+    // If initial stream fetch returned 403 or non-ok (e.g. expired/restricted googlevideo URL), refresh stream URL
+    if (!videoRes.ok && videoRes.status !== 206) {
+      console.warn(
+        `[STREAM_FETCH_WARN] Direct fetch returned status ${videoRes.status}. Attempting fresh stream re-extraction...`
+      );
+      const job = await JobStoreService.getJob(jobId);
+      const targetUrl = job?.url || job?.normalizedUrl || searchParams.get('u');
+      if (targetUrl) {
+        const norm = normalizeAndExtractMediaInfo(targetUrl);
+        const refreshed = await ExactMediaExtractor.extractExactMediaUrl(
+          norm.normalizedUrl || targetUrl,
+          norm.platform
+        );
+        if (refreshed && refreshed.mediaUrl) {
+          console.log(`[STREAM_REFRESH_SUCCESS] Obtained fresh media URL: ${refreshed.mediaUrl}`);
+          mediaStreamUrl = refreshed.mediaUrl;
+          videoRes = await fetchStream(mediaStreamUrl);
+        }
+      }
+    }
 
     const contentType = videoRes.headers.get('content-type') || '';
 
-    if (videoRes.ok && videoRes.body && !contentType.includes('text/html') && !contentType.includes('application/json')) {
+    if (
+      (videoRes.ok || videoRes.status === 206) &&
+      videoRes.body &&
+      !contentType.includes('text/html') &&
+      !contentType.includes('application/json')
+    ) {
       const responseHeaders = new Headers();
       responseHeaders.set('Content-Type', 'video/mp4');
       responseHeaders.set('Content-Disposition', `attachment; filename="${filename}"`);
+      responseHeaders.set('Accept-Ranges', 'bytes');
 
       const contentLength = videoRes.headers.get('content-length');
       if (contentLength && contentLength !== '0') {
         responseHeaders.set('Content-Length', contentLength);
       }
 
+      const contentRange = videoRes.headers.get('content-range');
+      if (contentRange) {
+        responseHeaders.set('Content-Range', contentRange);
+      }
+
       return new NextResponse(videoRes.body as any, {
-        status: 200,
+        status: videoRes.status,
         headers: responseHeaders,
       });
     } else {
-      console.error(`[FILE_FETCH_FAILED] Stream URL returned Content-Type ${contentType} and status ${videoRes.status}`);
-      if (
-        mediaStreamUrl.includes('googlevideo.com') ||
-        mediaStreamUrl.includes('cdninstagram.com') ||
-        mediaStreamUrl.includes('fbcdn.net') ||
-        mediaStreamUrl.includes('.mp4')
-      ) {
-        console.log(`[FILE_REDIRECT_FALLBACK] Redirecting client directly to media stream: ${mediaStreamUrl}`);
-        return NextResponse.redirect(mediaStreamUrl, { status: 302 });
-      }
+      console.error(
+        `[FILE_FETCH_FAILED] Stream URL returned status ${videoRes.status} and Content-Type ${contentType}`
+      );
     }
   } catch (err: any) {
-    console.error('[FILE_FETCH_ERROR] Error fetching media stream from storage:', err.message);
-    if (
-      mediaStreamUrl &&
-      (mediaStreamUrl.includes('googlevideo.com') ||
-        mediaStreamUrl.includes('cdninstagram.com') ||
-        mediaStreamUrl.includes('fbcdn.net') ||
-        mediaStreamUrl.includes('.mp4'))
-    ) {
-      console.log(`[FILE_REDIRECT_FALLBACK] Redirecting client directly to media stream on error: ${mediaStreamUrl}`);
-      return NextResponse.redirect(mediaStreamUrl, { status: 302 });
-    }
+    console.error('[FILE_FETCH_ERROR] Error fetching media stream:', err.message);
   }
 
-  // Never return 302 redirects to web pages or plain text error responses
+  // Never return 302 redirects to googlevideo.com or plain text error files
   return NextResponse.json(
-    { success: false, error: 'Unable to stream MP4 media file from storage.' },
-    { status: 404 }
+    {
+      success: false,
+      error: 'Video stream expired or access denied by source provider. Please analyze the URL again.',
+    },
+    { status: 403 }
   );
 }
 

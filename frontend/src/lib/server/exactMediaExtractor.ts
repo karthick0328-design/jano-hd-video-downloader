@@ -127,8 +127,12 @@ export class ExactMediaExtractor {
 
     if (videoId) {
       const instances = [
+        `https://inv.tux.pizza/api/v1/videos/${videoId}`,
+        `https://invidious.projectsegfau.lt/api/v1/videos/${videoId}`,
+        `https://invidious.privacydev.net/api/v1/videos/${videoId}`,
         `https://invidious.nerdvpn.de/api/v1/videos/${videoId}`,
         `https://invidious.drgns.space/api/v1/videos/${videoId}`,
+        `https://api.piped.video/streams/${videoId}`,
         `https://pipedapi.kavin.rocks/streams/${videoId}`,
       ];
 
