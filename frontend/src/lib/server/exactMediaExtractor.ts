@@ -103,7 +103,39 @@ export class ExactMediaExtractor {
       process.env.NEXT_PUBLIC_RAPIDAPI_KEY ||
       '6f0057a12amsha2c1a42a9448dacp1e4d5ajsn192cfef93384';
     if (videoId && apiKey) {
-      // 1. Try youtube-media-downloader API
+      // 1. Try yt-api (RapidAPI) - Active & Verified 200 OK
+      try {
+        const ytApiRes = await fetch(`https://yt-api.p.rapidapi.com/dl?id=${videoId}`, {
+          headers: {
+            'x-rapidapi-host': 'yt-api.p.rapidapi.com',
+            'x-rapidapi-key': apiKey,
+          },
+        });
+        if (ytApiRes.ok) {
+          const ytData = await ytApiRes.json();
+          if (ytData.title) title = ytData.title;
+          if (ytData.thumbnail && Array.isArray(ytData.thumbnail)) {
+            thumbnail = ytData.thumbnail[ytData.thumbnail.length - 1]?.url || thumbnail;
+          }
+          const formats = ytData.formats || ytData.adaptiveFormats || [];
+          const bestFormat =
+            formats.find((f: any) => f.url && f.hasAudio !== false && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
+            formats.find((f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
+            formats[0];
+
+          if (bestFormat && bestFormat.url) {
+            console.log(`[YT_API_SUCCESS] Extracted stream from yt-api for video ${videoId}`);
+            return {
+              mediaUrl: bestFormat.url,
+              title,
+              thumbnail,
+              mediaId: videoId,
+            };
+          }
+        }
+      } catch (e) {}
+
+      // 2. Fallback to youtube-media-downloader API
       try {
         const rapidRes = await fetch(
           `https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=${videoId}`,
@@ -114,9 +146,6 @@ export class ExactMediaExtractor {
             },
           }
         );
-        if (rapidRes.status === 429) {
-          console.warn('[RAPIDAPI_QUOTA_EXCEEDED] The RapidAPI key has reached its monthly quota limit.');
-        }
 
         if (rapidRes.ok) {
           const rData = await rapidRes.json();
@@ -129,7 +158,6 @@ export class ExactMediaExtractor {
             ? rData.videos
             : rData.videos?.items || rData.formats || [];
 
-          // 1. Prioritize MP4 formats with both video and audio
           const withAudio = videoItems.find(
             (f: any) =>
               (f.url || f.link || f.downloadUrl) &&
@@ -137,7 +165,6 @@ export class ExactMediaExtractor {
               (f.extension === 'mp4' || f.mimeType?.includes('mp4') || f.container === 'mp4' || !f.extension)
           );
 
-          // 2. Fallback to any MP4 format
           const anyMp4 = videoItems.find(
             (f: any) =>
               (f.url || f.link || f.downloadUrl) &&
@@ -149,33 +176,6 @@ export class ExactMediaExtractor {
             const streamLink = selected.url || selected.link || selected.downloadUrl;
             return {
               mediaUrl: streamLink,
-              title,
-              thumbnail,
-              mediaId: videoId,
-            };
-          }
-        }
-      } catch (e) {}
-
-      // 2. Try yt-api (RapidAPI)
-      try {
-        const ytApiRes = await fetch(`https://yt-api.p.rapidapi.com/dl?id=${videoId}`, {
-          headers: {
-            'x-rapidapi-host': 'yt-api.p.rapidapi.com',
-            'x-rapidapi-key': apiKey,
-          },
-        });
-        if (ytApiRes.ok) {
-          const ytData = await ytApiRes.json();
-          if (ytData.title) title = ytData.title;
-          const formats = ytData.formats || ytData.adaptiveFormats || [];
-          const bestFormat = formats.find(
-            (f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')
-          ) || formats[0];
-
-          if (bestFormat && bestFormat.url) {
-            return {
-              mediaUrl: bestFormat.url,
               title,
               thumbnail,
               mediaId: videoId,
