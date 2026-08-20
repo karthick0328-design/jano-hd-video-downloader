@@ -98,7 +98,10 @@ export class ExactMediaExtractor {
       } catch (e) {}
     }
 
-    const apiKey = process.env.RAPIDAPI_KEY || 'adad1ed563msh0f60216ba743677p16798bjsn5796797e67b6';
+    const apiKey =
+      process.env.RAPIDAPI_KEY ||
+      process.env.NEXT_PUBLIC_RAPIDAPI_KEY ||
+      '6f0057a12amsha2c1a42a9448dacp1e4d5ajsn192cfef93384';
     if (videoId && apiKey) {
       // 1. Try youtube-media-downloader API
       try {

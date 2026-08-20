@@ -11,7 +11,10 @@ export async function extractYouTubeClientSide(url: string): Promise<MediaAnalys
   if (!match) return null;
 
   const videoId = match[1];
-  const apiKey = process.env.NEXT_PUBLIC_RAPIDAPI_KEY || 'adad1ed563msh0f60216ba743677p16798bjsn5796797e67b6';
+  const apiKey =
+    process.env.NEXT_PUBLIC_RAPIDAPI_KEY ||
+    process.env.RAPIDAPI_KEY ||
+    '6f0057a12amsha2c1a42a9448dacp1e4d5ajsn192cfef93384';
 
   try {
     const res = await fetch(
