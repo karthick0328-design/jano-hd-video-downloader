@@ -58,6 +58,20 @@ export class YtDlpWrapper {
       extra.push('--ffmpeg-location', ffmpegPath);
     }
 
+    // Attach YOUTUBE_COOKIES or YOUTUBE_COOKIES_FILE if configured
+    if (process.env.YOUTUBE_COOKIES) {
+      try {
+        const os = require('os');
+        const cookieFilePath = path.join(os.tmpdir(), 'yt_cookies.txt');
+        fs.writeFileSync(cookieFilePath, process.env.YOUTUBE_COOKIES);
+        extra.push('--cookies', cookieFilePath);
+      } catch (cErr: any) {
+        logger.warn('Failed to write YOUTUBE_COOKIES temp file', { error: cErr.message });
+      }
+    } else if (process.env.YOUTUBE_COOKIES_FILE && fs.existsSync(process.env.YOUTUBE_COOKIES_FILE)) {
+      extra.push('--cookies', process.env.YOUTUBE_COOKIES_FILE);
+    }
+
     return extra;
   }
 
