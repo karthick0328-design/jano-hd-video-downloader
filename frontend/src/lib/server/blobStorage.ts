@@ -55,8 +55,8 @@ export class BlobStorageService {
       const contentLengthStr = checkRes.headers.get('content-length') || checkRes.headers.get('content-range')?.split('/')?.[1];
       const fileSize = contentLengthStr ? parseInt(contentLengthStr, 10) : 0;
 
-      // Status must be 200 or 206 (Partial Content)
-      if ((checkRes.ok || checkRes.status === 206) && (!contentType || contentType.includes('video') || contentType.includes('octet-stream') || contentType.includes('mp4') || fileSize > 0)) {
+      // Status must be 200 or 206 (Partial Content) and not small error text
+      if ((checkRes.ok || checkRes.status === 206) && (!contentType || contentType.includes('video') || contentType.includes('octet-stream') || contentType.includes('mp4')) && fileSize > 1000) {
         return { verified: true, fileSize };
       }
 
@@ -107,10 +107,14 @@ export class BlobStorageService {
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             },
           });
-          if (res.ok && res.body) {
+          if ((res.ok || res.status === 206) && res.body) {
             contentToUpload = res.body;
           } else {
-            console.error(`[STORAGE_FETCH_ERROR] Stream fetch failed with status ${res.status}`);
+            console.error(`[STORAGE_FETCH_ERROR] Upstream fetch returned HTTP ${res.status}. Rejecting Blob upload to prevent saving corrupt error text.`);
+            return {
+              success: false,
+              error: `Upstream video provider blocked access (HTTP ${res.status}). Please try again.`,
+            };
           }
         }
 
