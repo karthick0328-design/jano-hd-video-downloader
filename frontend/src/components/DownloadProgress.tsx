@@ -49,9 +49,28 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       setDownloadError(null);
 
       const targetUrl = getFullDownloadUrl(job.downloadUrl);
-      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Triggering direct browser download:', targetUrl);
+      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Checking stream availability:', targetUrl);
 
-      // Trigger direct top-level browser download (immune to CORS preflight & 302 redirect blocks)
+      // Probe stream URL to catch JSON/HTML errors before browser triggers file download
+      const checkRes = await fetch(targetUrl, {
+        method: 'GET',
+        headers: { Range: 'bytes=0-10' },
+      });
+
+      const contentType = checkRes.headers.get('content-type') || '';
+      if (!checkRes.ok || contentType.includes('application/json') || contentType.includes('text/html')) {
+        let errorMsg =
+          'Video stream expired or access denied by source provider. Please click "New Link" and analyze again.';
+        try {
+          const json = await checkRes.json();
+          if (json.error) errorMsg = json.error;
+        } catch (e) {}
+        setDownloadError(errorMsg);
+        setDownloading(false);
+        return;
+      }
+
+      // Stream verified! Trigger direct browser download
       const link = document.createElement('a');
       link.href = targetUrl;
       link.setAttribute('download', '');

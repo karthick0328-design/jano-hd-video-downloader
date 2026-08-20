@@ -100,26 +100,60 @@ export class ExactMediaExtractor {
 
     const apiKey = process.env.RAPIDAPI_KEY || 'adad1ed563msh0f60216ba743677p16798bjsn5796797e67b6';
     if (videoId && apiKey) {
+      // 1. Try youtube-media-downloader API
       try {
-        const rapidRes = await fetch(`https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=${videoId}`, {
-          headers: {
-            'x-rapidapi-host': 'youtube-media-downloader.p.rapidapi.com',
-            'x-rapidapi-key': apiKey,
-          },
-        });
+        const rapidRes = await fetch(
+          `https://youtube-media-downloader.p.rapidapi.com/v2/video/details?videoId=${videoId}`,
+          {
+            headers: {
+              'x-rapidapi-host': 'youtube-media-downloader.p.rapidapi.com',
+              'x-rapidapi-key': apiKey,
+            },
+          }
+        );
         if (rapidRes.ok) {
           const rData = await rapidRes.json();
           if (rData.title) title = rData.title;
-          const videoItems = Array.isArray(rData.videos) ? rData.videos : (rData.videos?.items || []);
+          const videoItems = Array.isArray(rData.videos)
+            ? rData.videos
+            : rData.videos?.items || rData.formats || [];
           for (const f of videoItems) {
-            if (f.url && (f.extension === 'mp4' || f.mimeType?.includes('mp4'))) {
+            const streamLink = f.url || f.link || f.downloadUrl;
+            if (streamLink && (f.extension === 'mp4' || f.mimeType?.includes('mp4') || f.container === 'mp4' || !f.extension)) {
               return {
-                mediaUrl: f.url,
+                mediaUrl: streamLink,
                 title,
                 thumbnail,
                 mediaId: videoId,
               };
             }
+          }
+        }
+      } catch (e) {}
+
+      // 2. Try yt-api (RapidAPI)
+      try {
+        const ytApiRes = await fetch(`https://yt-api.p.rapidapi.com/dl?id=${videoId}`, {
+          headers: {
+            'x-rapidapi-host': 'yt-api.p.rapidapi.com',
+            'x-rapidapi-key': apiKey,
+          },
+        });
+        if (ytApiRes.ok) {
+          const ytData = await ytApiRes.json();
+          if (ytData.title) title = ytData.title;
+          const formats = ytData.formats || ytData.adaptiveFormats || [];
+          const bestFormat = formats.find(
+            (f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')
+          ) || formats[0];
+
+          if (bestFormat && bestFormat.url) {
+            return {
+              mediaUrl: bestFormat.url,
+              title,
+              thumbnail,
+              mediaId: videoId,
+            };
           }
         }
       } catch (e) {}
