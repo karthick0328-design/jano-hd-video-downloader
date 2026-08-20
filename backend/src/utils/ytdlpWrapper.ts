@@ -76,7 +76,8 @@ export class YtDlpWrapper {
     logger.debug('Executing yt-dlp dumpJson', { url, args });
 
     return new Promise((resolve, reject) => {
-      let child = spawn('python', ['-m', 'yt_dlp', ...args], {
+      let pyCmd = process.platform === 'win32' ? 'python' : 'python3';
+      let child = spawn(pyCmd, ['-m', 'yt_dlp', ...args], {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
@@ -162,7 +163,8 @@ export class YtDlpWrapper {
     logger.info('Executing yt-dlp downloadMedia', { url, formatSpec, outputTemplate, args });
 
     return new Promise((resolve, reject) => {
-      let child = spawn('python', ['-m', 'yt_dlp', ...args]);
+      let pyCmd = process.platform === 'win32' ? 'python' : 'python3';
+      let child = spawn(pyCmd, ['-m', 'yt_dlp', ...args]);
 
       let stderrData = '';
 
