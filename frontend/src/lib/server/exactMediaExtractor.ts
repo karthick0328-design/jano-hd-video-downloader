@@ -117,11 +117,16 @@ export class ExactMediaExtractor {
           if (ytData.thumbnail && Array.isArray(ytData.thumbnail)) {
             thumbnail = ytData.thumbnail[ytData.thumbnail.length - 1]?.url || thumbnail;
           }
-          const formats = ytData.formats || ytData.adaptiveFormats || [];
+          const combinedFormats = ytData.formats || [];
+          const adaptiveFormats = ytData.adaptiveFormats || [];
+          const allFormats = [...combinedFormats, ...adaptiveFormats];
+
           const bestFormat =
-            formats.find((f: any) => f.url && f.hasAudio !== false && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
-            formats.find((f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
-            formats[0];
+            combinedFormats.find((f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
+            allFormats.find((f: any) => f.url && f.audioQuality && f.audioQuality !== 'NONE' && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
+            allFormats.find((f: any) => f.url && f.hasAudio === true) ||
+            allFormats.find((f: any) => f.url && (f.mimeType?.includes('video/mp4') || f.container === 'mp4')) ||
+            allFormats[0];
 
           if (bestFormat && bestFormat.url) {
             console.log(`[YT_API_SUCCESS] Extracted stream from yt-api for video ${videoId}`);
