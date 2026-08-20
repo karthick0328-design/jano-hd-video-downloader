@@ -49,45 +49,12 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       setDownloadError(null);
 
       const targetUrl = getFullDownloadUrl(job.downloadUrl);
-      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Triggering video download:', targetUrl);
+      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Triggering server-proxied video download:', targetUrl);
 
-      // 1. Direct external CDN Stream URLs (googlevideo, cdninstagram, fbcdn, etc.)
-      if (job.downloadUrl.startsWith('http://') || job.downloadUrl.startsWith('https://')) {
-        const link = document.createElement('a');
-        link.href = job.downloadUrl;
-        link.setAttribute('download', `${job.title || 'Video'}.mp4`);
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        return;
-      }
-
-      // 2. Local API proxy endpoints (/api/download/[jobId]/file)
-      const checkRes = await fetch(targetUrl, {
-        method: 'GET',
-        headers: { Range: 'bytes=0-10' },
-      });
-
-      const contentType = checkRes.headers.get('content-type') || '';
-      if (!checkRes.ok || contentType.includes('application/json') || contentType.includes('text/html')) {
-        let errorMsg =
-          'Video stream expired or access denied by source provider. Please click "New Link" and analyze again.';
-        try {
-          const json = await checkRes.json();
-          if (json.error) errorMsg = json.error;
-        } catch (e) {}
-        setDownloadError(errorMsg);
-        setDownloading(false);
-        return;
-      }
-
-      // Stream verified! Trigger direct browser download
+      // Trigger direct server-proxied MP4 browser download
       const link = document.createElement('a');
       link.href = targetUrl;
-      link.setAttribute('download', '');
-      link.target = '_self';
+      link.setAttribute('download', `${job.title || 'Video'}.mp4`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -95,7 +62,7 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       console.error('[FRONTEND_DOWNLOAD_ERROR]', err);
       setDownloadError(err.message || 'Failed to download video file.');
     } finally {
-      setTimeout(() => setDownloading(false), 2000);
+      setTimeout(() => setDownloading(false), 2500);
     }
   };
 

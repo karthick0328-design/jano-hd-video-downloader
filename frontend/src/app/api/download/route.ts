@@ -122,17 +122,7 @@ export async function POST(req: NextRequest) {
       'completed'
     );
 
-    let finalDownloadUrl = `/api/download/${job.jobId}/file?b=${encodeURIComponent(verifiedBlobUrl)}&u=${encodeURIComponent(normalizedUrl)}&name=${encodeURIComponent(safeFilename)}`;
-
-    if (
-      verifiedBlobUrl &&
-      (verifiedBlobUrl.includes('googlevideo.com') ||
-        verifiedBlobUrl.includes('cdninstagram.com') ||
-        verifiedBlobUrl.includes('fbcdn.net') ||
-        verifiedBlobUrl.includes('sharechat.com'))
-    ) {
-      finalDownloadUrl = verifiedBlobUrl;
-    }
+    const finalDownloadUrl = `/api/download/${job.jobId}/file?b=${encodeURIComponent(verifiedBlobUrl)}&u=${encodeURIComponent(normalizedUrl)}&name=${encodeURIComponent(safeFilename)}`;
 
     console.log(
       `[JOB_SUCCESS] [JOB] ${job.jobId} [PLATFORM] ${platform} [REEL_ID] ${mediaId || 'none'} [URL] ${normalizedUrl} [STORAGE_URL] ${verifiedBlobUrl} [DOWNLOAD_URL] ${finalDownloadUrl}`
