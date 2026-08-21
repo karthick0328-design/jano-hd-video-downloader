@@ -49,28 +49,56 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
       setDownloadError(null);
 
       const targetUrl = getFullDownloadUrl(job.downloadUrl);
-      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Probing video stream availability:', targetUrl);
+      console.log('[FRONTEND_DOWNLOAD_TRIGGER] Starting chunked browser download:', targetUrl);
 
-      // 1. Probe stream endpoint first to prevent browser download shelf errors ("File wasn't available on site")
-      const probeRes = await fetch(targetUrl, {
-        method: 'GET',
-        headers: { Range: 'bytes=0-10' },
-      });
+      // Try fetching in chunks to bypass Vercel limits
+      try {
+        const headRes = await fetch(targetUrl, { method: 'GET', headers: { Range: 'bytes=0-10' } });
+        const contentType = headRes.headers.get('content-type') || '';
+        
+        if (!headRes.ok || contentType.includes('application/json') || contentType.includes('text/html')) {
+          throw new Error('Fallback');
+        }
 
-      const contentType = probeRes.headers.get('content-type') || '';
-      if (!probeRes.ok || contentType.includes('application/json') || contentType.includes('text/html')) {
-        let errorMsg =
-          'Video stream expired or access denied by source provider. Please click "New Link" and try again.';
-        try {
-          const json = await probeRes.json();
-          if (json.error) errorMsg = json.error;
-        } catch (e) {}
-        setDownloadError(errorMsg);
-        setDownloading(false);
-        return;
+        const cr = headRes.headers.get('content-range');
+        const cl = headRes.headers.get('content-length');
+        let totalSize = 0;
+        if (cr) {
+          totalSize = parseInt(cr.split('/')[1] || '0', 10);
+        } else if (cl) {
+          totalSize = parseInt(cl, 10);
+        }
+
+        const CHUNK_SIZE = 3 * 1024 * 1024; // 3MB chunks (Vercel limit is 4.5MB)
+        
+        if (totalSize > 0 && totalSize > CHUNK_SIZE) {
+          const chunks = [];
+          let downloaded = 0;
+          while (downloaded < totalSize) {
+            const end = Math.min(downloaded + CHUNK_SIZE - 1, totalSize - 1);
+            const chunkRes = await fetch(targetUrl, { headers: { Range: `bytes=${downloaded}-${end}` } });
+            if (!chunkRes.ok) throw new Error('Fallback');
+            const buffer = await chunkRes.arrayBuffer();
+            chunks.push(new Uint8Array(buffer));
+            downloaded += buffer.byteLength;
+          }
+          const blob = new Blob(chunks, { type: 'video/mp4' });
+          const blobUrl = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.setAttribute('download', `${job.title || 'Video'}.mp4`);
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+          setDownloading(false);
+          return;
+        }
+      } catch (e) {
+        console.log('[FRONTEND_DOWNLOAD_TRIGGER] Chunking failed (CORS or small file), falling back to direct navigation.');
       }
 
-      // 2. Stream verified! Trigger direct MP4 browser download
+      // Fallback: direct MP4 browser download natively
       const link = document.createElement('a');
       link.href = targetUrl;
       link.setAttribute('download', `${job.title || 'Video'}.mp4`);
