@@ -119,26 +119,30 @@ def extract_video(req: VideoRequest):
             last_error = f"Cookie extraction failed: {str(e)}"
 
     client_candidates = [
+        None, # Default yt-dlp clients
         ['android_creator'],
-        ['android_testsuite'],
-        ['android'],
-        ['mweb'],
-        ['ios']
+        ['ios'],
+        ['tv_embedded'],
+        ['mweb']
     ]
 
     last_error = None
 
     for client_list in client_candidates:
         ydl_opts = {
+            'format': 'best[ext=mp4]/bestvideo[ext=mp4]+bestaudio[ext=m4a]/best',
             'no_warnings': True,
             'quiet': True,
             'skip_download': True,
-            'extractor_args': {
+        }
+        
+        if client_list:
+            ydl_opts['extractor_args'] = {
                 'youtube': {
                     'player_client': client_list,
                 }
             }
-        }
+            
         if cookie_path and os.path.exists(cookie_path):
             ydl_opts['cookiefile'] = cookie_path
 
@@ -149,12 +153,15 @@ def extract_video(req: VideoRequest):
                     continue
 
                 stream_url = info.get('url')
+                
+                # If a direct 'url' is not available, find the first format that has both video and audio
                 if not stream_url and info.get('formats'):
                     for f in info['formats']:
-                        if f.get('url') and f.get('vcodec') != 'none':
+                        # We want a format that has both audio and video
+                        if f.get('url') and f.get('vcodec') != 'none' and f.get('acodec') != 'none':
                             stream_url = f['url']
                             break
-
+                            
                 if stream_url:
                     title = info.get('title') or 'YouTube Video'
                     thumbnail = info.get('thumbnail') or ''

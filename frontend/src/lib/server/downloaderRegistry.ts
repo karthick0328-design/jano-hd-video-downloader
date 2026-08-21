@@ -58,96 +58,89 @@ export class ServerDownloaderService {
     }
 
     // 2. Try yt-dlp first if available
-    try {
-      const { stdout } = await execAsync(`python -m yt_dlp --dump-json --no-warnings -- "${normalizedUrl}"`, {
-        timeout: 8000,
-      });
+    const clients = ['', 'youtube:player_client=android_creator,web', 'youtube:player_client=ios', 'youtube:player_client=tv_embedded'];
+    
+    for (const clientArgs of clients) {
+      try {
+        const extractorArgs = clientArgs ? `--extractor-args "${clientArgs}"` : '';
+        const { stdout } = await execAsync(`python -m yt_dlp --dump-json ${extractorArgs} --no-warnings -- "${normalizedUrl}"`, {
+          timeout: 10000,
+        });
 
-      if (stdout && stdout.trim()) {
-        const dump = JSON.parse(stdout.trim());
+        if (stdout && stdout.trim()) {
+          const dump = JSON.parse(stdout.trim());
 
-        // Verify ID if mediaId exists (Section 7 verification)
-        const extractedId = dump.id || dump.display_id || dump.webpage_url_basename;
-        if (mediaId && extractedId && extractedId.toLowerCase() !== mediaId.toLowerCase()) {
-          console.error(`[VERIFICATION_FAILED] Extracted ID ${extractedId} does not match requested ID ${mediaId}`);
+          // Verify ID if mediaId exists (Section 7 verification)
+          const extractedId = dump.id || dump.display_id || dump.webpage_url_basename;
+          if (mediaId && extractedId && extractedId.toLowerCase() !== mediaId.toLowerCase()) {
+            console.error(`[VERIFICATION_FAILED] Extracted ID ${extractedId} does not match requested ID ${mediaId}`);
+            continue; // Try next fallback or fail
+          }
+
+          const title = dump.title || this.getDefaultTitle(platform);
+          let thumbnail = dump.thumbnail || '';
+          if (!thumbnail && dump.thumbnails && dump.thumbnails.length > 0) {
+            thumbnail = dump.thumbnails[dump.thumbnails.length - 1].url;
+          }
+          const duration = Math.round(dump.duration || 0);
+
+          const rawFormats = dump.formats || [];
+          const formatMap = new Map<number, QualityFormat>();
+
+          for (const fmt of rawFormats) {
+            const hasVideo = fmt.vcodec !== 'none' && !!fmt.vcodec;
+            if (!hasVideo && rawFormats.length > 1) continue;
+
+            const height = fmt.height || (fmt.format_note?.includes('1080') ? 1080 : 720);
+            const qualityLabel = `${height}p`;
+            const hasAudio = fmt.acodec !== 'none' && !!fmt.acodec;
+
+            if (!formatMap.has(height)) {
+              formatMap.set(height, {
+                quality: qualityLabel,
+                height,
+                format: 'mp4',
+                formatId: fmt.format_id || 'best',
+                hasVideo: true,
+                hasAudio,
+                needsMerge: !hasAudio,
+                filesizeApprox: fmt.filesize || fmt.filesize_approx,
+                fps: fmt.fps,
+              });
+            }
+          }
+
+          if (formatMap.size === 0) {
+            formatMap.set(1080, {
+              quality: '1080p',
+              height: 1080,
+              format: 'mp4',
+              formatId: 'best',
+              hasVideo: true,
+              hasAudio: true,
+              needsMerge: false,
+            });
+          }
+
+          const sortedFormats = Array.from(formatMap.values()).sort((a, b) => b.height - a.height);
+          const maxAvailableQuality = sortedFormats.length > 0 ? sortedFormats[0].quality : '1080p';
+
           return {
-            success: false,
+            success: true,
             url,
             normalizedUrl,
             platform,
             mediaId,
-            title: '',
-            thumbnail: '',
-            duration: 0,
-            maxAvailableQuality: '',
-            formats: [],
-            error: 'Unable to verify that the metadata matches the requested media ID.',
+            title,
+            thumbnail,
+            duration,
+            maxAvailableQuality,
+            formats: sortedFormats,
           };
         }
-
-        const title = dump.title || this.getDefaultTitle(platform);
-        let thumbnail = dump.thumbnail || '';
-        if (!thumbnail && dump.thumbnails && dump.thumbnails.length > 0) {
-          thumbnail = dump.thumbnails[dump.thumbnails.length - 1].url;
-        }
-        const duration = Math.round(dump.duration || 0);
-
-        const rawFormats = dump.formats || [];
-        const formatMap = new Map<number, QualityFormat>();
-
-        for (const fmt of rawFormats) {
-          const hasVideo = fmt.vcodec !== 'none' && !!fmt.vcodec;
-          if (!hasVideo && rawFormats.length > 1) continue;
-
-          const height = fmt.height || (fmt.format_note?.includes('1080') ? 1080 : 720);
-          const qualityLabel = `${height}p`;
-          const hasAudio = fmt.acodec !== 'none' && !!fmt.acodec;
-
-          if (!formatMap.has(height)) {
-            formatMap.set(height, {
-              quality: qualityLabel,
-              height,
-              format: 'mp4',
-              formatId: fmt.format_id || 'best',
-              hasVideo: true,
-              hasAudio,
-              needsMerge: !hasAudio,
-              filesizeApprox: fmt.filesize || fmt.filesize_approx,
-              fps: fmt.fps,
-            });
-          }
-        }
-
-        if (formatMap.size === 0) {
-          formatMap.set(1080, {
-            quality: '1080p',
-            height: 1080,
-            format: 'mp4',
-            formatId: 'best',
-            hasVideo: true,
-            hasAudio: true,
-            needsMerge: false,
-          });
-        }
-
-        const sortedFormats = Array.from(formatMap.values()).sort((a, b) => b.height - a.height);
-        const maxAvailableQuality = sortedFormats.length > 0 ? sortedFormats[0].quality : '1080p';
-
-        return {
-          success: true,
-          url,
-          normalizedUrl,
-          platform,
-          mediaId,
-          title,
-          thumbnail,
-          duration,
-          maxAvailableQuality,
-          formats: sortedFormats,
-        };
+      } catch (err) {
+        // yt-dlp client failed, continue to next
       }
-    } catch (err) {
-      // yt-dlp binary not available on serverless
     }
 
     // 3. Serverless Metadata Inspector

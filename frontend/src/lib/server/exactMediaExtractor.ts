@@ -47,37 +47,42 @@ export class ExactMediaExtractor {
       }
 
       // 1. Try yt-dlp if available on host (e.g. local or server worker environment)
-      try {
-        const { stdout } = await execAsync(`python -m yt_dlp --dump-json --no-warnings -- "${norm.normalizedUrl || url}"`, {
-          timeout: 10000,
-        });
-        if (stdout && stdout.trim()) {
-          const dump = JSON.parse(stdout.trim());
-          const extractedId = dump.id || dump.display_id || dump.webpage_url_basename;
+      const clients = ['', 'youtube:player_client=android_creator,web', 'youtube:player_client=ios', 'youtube:player_client=tv_embedded'];
+      for (const clientArgs of clients) {
+        try {
+          const extractorArgs = clientArgs ? `--extractor-args "${clientArgs}"` : '';
+          const { stdout } = await execAsync(`python -m yt_dlp --dump-json ${extractorArgs} --no-warnings -- "${norm.normalizedUrl || url}"`, {
+            timeout: 12000,
+          });
+          if (stdout && stdout.trim()) {
+            const dump = JSON.parse(stdout.trim());
+            const extractedId = dump.id || dump.display_id || dump.webpage_url_basename;
 
-          // Strict Media Identity Check
-          if (mediaId && extractedId && extractedId.toLowerCase() !== mediaId.toLowerCase()) {
-            console.error(`[IDENTITY_FAILED] Extracted ID ${extractedId} does not match requested media ID ${mediaId}`);
-            return { mediaUrl: null };
+            if (mediaId && extractedId && extractedId.toLowerCase() !== mediaId.toLowerCase()) {
+              console.error(`[IDENTITY_FAILED] Extracted ID ${extractedId} does not match requested media ID ${mediaId}`);
+              return { mediaUrl: null };
+            }
+
+            // Find a stream with both video and audio
+            const streamObj =
+              (dump.formats && dump.formats.find((f: any) => f.format_id === '18' && f.url)) ||
+              (dump.formats && dump.formats.find((f: any) => f.format_id === '22' && f.url)) ||
+              (dump.formats && dump.formats.find((f: any) => f.vcodec && f.vcodec !== 'none' && f.acodec && f.acodec !== 'none' && f.url));
+
+            const streamUrl = streamObj?.url || dump.url;
+            if (streamUrl) {
+              console.log(`[YTDLP_SUCCESS] Extracted combined stream for video ${mediaId || dump.id} using ${clientArgs || 'default'}`);
+              return {
+                mediaUrl: streamUrl,
+                title: dump.title,
+                thumbnail: dump.thumbnail,
+                mediaId,
+              };
+            }
           }
-
-          const streamObj =
-            (dump.formats && dump.formats.find((f: any) => f.format_id === '18' && f.url)) ||
-            (dump.formats && dump.formats.find((f: any) => f.vcodec && f.vcodec !== 'none' && f.acodec && f.acodec !== 'none' && f.url));
-
-          const streamUrl = streamObj?.url || dump.url;
-          if (streamUrl) {
-            console.log(`[YTDLP_SUCCESS] Extracted combined stream (format_id ${streamObj?.format_id || 'dump.url'}) for video ${mediaId || dump.id}`);
-            return {
-              mediaUrl: streamUrl,
-              title: dump.title,
-              thumbnail: dump.thumbnail,
-              mediaId,
-            };
-          }
+        } catch (e) {
+          // yt-dlp failed, continue to next client
         }
-      } catch (e) {
-        // yt-dlp binary not present on serverless, proceed to pure HTTP resolvers
       }
 
       // 2. Pure HTTP platform resolvers
