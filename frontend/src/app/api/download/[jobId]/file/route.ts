@@ -97,11 +97,44 @@ export async function GET(
       fetchHeaders['Range'] = clientRange;
     }
 
+    if (url.includes('googlevideo.com') || url.includes('youtube.com') || url.includes('youtu.be')) {
+      // Use ytdl-core to natively proxy the stream on Vercel to bypass 403 IP-binding errors
+      try {
+        const targetUrl = searchParams.get('u');
+        if (targetUrl) {
+          const ytdl = require('@distube/ytdl-core');
+          console.log(`[YTDL-CORE] Proxying YouTube stream natively...`);
+          const ytStream = ytdl(targetUrl, { filter: 'audioandvideo', quality: 'highest' });
+          
+          const webStream = new ReadableStream({
+            start(controller) {
+              ytStream.on('data', (chunk: any) => controller.enqueue(chunk));
+              ytStream.on('end', () => controller.close());
+              ytStream.on('error', (err: any) => controller.error(err));
+            },
+            cancel() {
+              ytStream.destroy();
+            }
+          });
+
+          return new NextResponse(webStream, {
+            status: 200,
+            headers: {
+              'Content-Type': 'video/mp4',
+              'Content-Disposition': `attachment; filename="${filename}"`,
+            }
+          });
+        }
+      } catch (e: any) {
+        console.error('[YTDL-CORE_PROXY_ERROR]', e.message);
+      }
+    }
+
     return await fetch(url, { headers: fetchHeaders });
   };
 
   try {
-    let videoRes = await fetchStream(mediaStreamUrl);
+      let videoRes = await fetchStream(mediaStreamUrl);
 
     // If initial stream fetch returned 403 or non-ok (e.g. expired/restricted googlevideo URL), refresh stream URL
     if (!videoRes.ok && videoRes.status !== 206) {
@@ -169,5 +202,6 @@ export async function GET(
     { status: 403 }
   );
 }
+
 
 
