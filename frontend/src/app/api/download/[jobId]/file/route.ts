@@ -51,64 +51,41 @@ const resHeaders = new Headers(); resHeaders.set('Access-Control-Allow-Origin', 
 
   if (mediaStreamUrl.includes('googlevideo.com') || mediaStreamUrl.includes('youtube.com')) {
     try {
-      const targetUrl = searchParams.get('u');
-      if (targetUrl) {
-        const ytdl = require('@distube/ytdl-core');
-        const clientRange = req.headers.get('range');
-        const options: any = { filter: 'audioandvideo', quality: 'highest' };
-        
-        let start = 0;
-        let end: number | undefined = undefined;
-        let isPartial = false;
-        
-        if (clientRange) {
-          const match = clientRange.match(/bytes=(\d+)-(\d*)/);
-          if (match) {
-            start = parseInt(match[1], 10);
-            if (match[2]) end = parseInt(match[2], 10);
-            options.range = { start, end };
-            isPartial = true;
-          }
-        }
+      const fetchHeaders: Record<string, string> = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://www.youtube.com/',
+        'Origin': 'https://www.youtube.com/'
+      };
+      
+      const clientRange = req.headers.get('range');
+      if (clientRange) {
+        fetchHeaders['Range'] = clientRange;
+      }
 
-        const info = await ytdl.getInfo(targetUrl);
-        const format = ytdl.chooseFormat(info.formats, options);
-        const contentLength = parseInt(format.contentLength || '0', 10);
+      console.log(`[VERCEL_PROXY] Proxying googlevideo stream via standard fetch: ${mediaStreamUrl.substring(0, 50)}...`);
+      const videoRes = await fetch(mediaStreamUrl, { headers: fetchHeaders });
+      
+      if (videoRes.ok || videoRes.status === 206) {
+        const responseHeaders = new Headers();
+        responseHeaders.set('Access-Control-Allow-Origin', '*');
+        responseHeaders.set('Content-Type', 'video/mp4');
+        responseHeaders.set('Content-Disposition', `attachment; filename="${filename}"`);
+        responseHeaders.set('Accept-Ranges', 'bytes');
         
-        const ytStream = ytdl(targetUrl, options);
-        
-        const webStream = new ReadableStream({
-          start(controller) {
-            ytStream.on('data', (chunk: any) => controller.enqueue(chunk));
-            ytStream.on('end', () => controller.close());
-            ytStream.on('error', (err: any) => controller.error(err));
-          },
-          cancel() {
-            ytStream.destroy();
-          }
+        const cl = videoRes.headers.get('content-length');
+        if (cl) responseHeaders.set('Content-Length', cl);
+        const cr = videoRes.headers.get('content-range');
+        if (cr) responseHeaders.set('Content-Range', cr);
+
+        return new NextResponse(videoRes.body as any, {
+          status: videoRes.status,
+          headers: responseHeaders,
         });
-
-const resHeaders = new Headers(); resHeaders.set('Access-Control-Allow-Origin', '*');
-        resHeaders.set('Content-Type', 'video/mp4');
-        resHeaders.set('Content-Disposition', `attachment; filename="${filename}"`);
-        resHeaders.set('Accept-Ranges', 'bytes');
-        
-        if (contentLength) {
-           const finalEnd = end !== undefined ? end : contentLength - 1;
-           const length = finalEnd - start + 1;
-           resHeaders.set('Content-Length', length.toString());
-           if (isPartial) {
-             resHeaders.set('Content-Range', `bytes ${start}-${finalEnd}/${contentLength}`);
-           }
-        }
-
-        return new NextResponse(webStream, {
-          status: isPartial ? 206 : 200,
-          headers: resHeaders,
-        });
+      } else {
+        console.error(`[VERCEL_PROXY_ERROR] Standard fetch failed with status ${videoRes.status}`);
       }
     } catch (e: any) {
-      console.error('[YTDL-CORE_PROXY_ERROR]', e.message);
+      console.error('[VERCEL_PROXY_ERROR]', e.message);
     }
   }
 
