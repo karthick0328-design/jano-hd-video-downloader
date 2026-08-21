@@ -143,6 +143,66 @@ export class ServerDownloaderService {
       }
     }
 
+    // 2.5 Try @distube/ytdl-core native module if available
+    if (platform === 'youtube' || platform === 'youtube-short') {
+      try {
+        const ytdl = require('@distube/ytdl-core');
+        const info = await ytdl.getInfo(normalizedUrl);
+        
+        if (info && info.formats) {
+          // Verify ID
+          if (mediaId && info.videoDetails.videoId && info.videoDetails.videoId.toLowerCase() !== mediaId.toLowerCase()) {
+             // Verification failed, skip
+          } else {
+            const formatMap = new Map<number, QualityFormat>();
+            
+            for (const fmt of info.formats) {
+              const hasVideo = !!fmt.hasVideo;
+              if (!hasVideo && info.formats.length > 1) continue;
+              
+              const height = fmt.height || (fmt.qualityLabel ? parseInt(fmt.qualityLabel) : 720);
+              const qualityLabel = `${height}p`;
+              const hasAudio = !!fmt.hasAudio;
+              
+              if (!formatMap.has(height)) {
+                formatMap.set(height, {
+                  quality: qualityLabel,
+                  height,
+                  format: 'mp4',
+                  formatId: fmt.itag?.toString() || 'best',
+                  hasVideo: true,
+                  hasAudio,
+                  needsMerge: !hasAudio,
+                  filesizeApprox: fmt.contentLength ? parseInt(fmt.contentLength) : undefined,
+                  fps: fmt.fps,
+                });
+              }
+            }
+            
+            if (formatMap.size > 0) {
+              const sortedFormats = Array.from(formatMap.values()).sort((a, b) => b.height - a.height);
+              const maxAvailableQuality = sortedFormats.length > 0 ? sortedFormats[0].quality : '1080p';
+              
+              return {
+                success: true,
+                url,
+                normalizedUrl,
+                platform,
+                mediaId,
+                title: info.videoDetails.title || this.getDefaultTitle(platform),
+                thumbnail: info.videoDetails.thumbnails?.[info.videoDetails.thumbnails.length - 1]?.url || '',
+                duration: parseInt(info.videoDetails.lengthSeconds || '0'),
+                maxAvailableQuality,
+                formats: sortedFormats,
+              };
+            }
+          }
+        }
+      } catch(e) {
+        // ytdl-core failed
+      }
+    }
+
     // 3. Serverless Metadata Inspector
     return this.serverlessMetadataInspector(normalizedUrl, platform, mediaId);
   }

@@ -172,6 +172,64 @@ export class ExactMediaExtractor {
         }
       } catch (e) {}
     }
+    // 0.2. Try Cobalt v10 APIs (Highly reliable open-source instances)
+    const cobaltInstances = [
+      'https://co.eepy.cat',
+      'https://cobalt.q-n-d.de',
+      'https://cobalt.kwiatekm.com',
+      'https://api.cobalt.tools'
+    ];
+    
+    for (const cobaltHost of cobaltInstances) {
+      try {
+        const res = await fetch(`${cobaltHost}`, {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ url, videoQuality: '1080' })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status === 'stream' && data.url) {
+            console.log(`[COBALT_SUCCESS] Extracted from ${cobaltHost}`);
+            return {
+              mediaUrl: data.url,
+              title: title,
+              thumbnail: thumbnail,
+              mediaId: videoId,
+            };
+          } else if (data && data.status === 'redirect' && data.url) {
+            return {
+              mediaUrl: data.url,
+              title,
+              thumbnail,
+              mediaId: videoId,
+            };
+          }
+        }
+      } catch (e) {}
+    }
+    // 0.5. Try native @distube/ytdl-core if installed (bypasses Render/RapidAPI completely)
+    try {
+      // Dynamic import to prevent Edge runtime crashes if not fully compatible
+      const ytdl = require('@distube/ytdl-core');
+      const info = await ytdl.getInfo(url);
+      const format = ytdl.chooseFormat(info.formats, { filter: 'audioandvideo', quality: 'highest' }) || ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
+      
+      if (format && format.url) {
+        console.log(`[YTDL-CORE_SUCCESS] Extracted from local Vercel Node runtime: ${format.url}`);
+        return {
+          mediaUrl: format.url,
+          title: info.videoDetails?.title || title,
+          thumbnail: info.videoDetails?.thumbnails?.[info.videoDetails.thumbnails.length - 1]?.url || thumbnail,
+          mediaId: videoId,
+        };
+      }
+    } catch (e: any) {
+      console.log('[YTDL-CORE_FAILED]', e.message);
+    }
 
     if (videoId && apiKey) {
       // 1. Try yt-api (RapidAPI) - Active & Verified 200 OK
