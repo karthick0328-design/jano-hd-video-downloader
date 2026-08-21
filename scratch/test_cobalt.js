@@ -1,22 +1,44 @@
-async function testCobaltV10() {
-  try {
-    const res = await fetch('https://api.cobalt.tools/', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-        videoQuality: '1080',
-      }),
-    });
-    console.log('Cobalt v10 status:', res.status);
-    const data = await res.json();
-    console.log('Cobalt v10 response:', data);
-  } catch (e) {
-    console.log('Cobalt v10 error:', e.message);
+async function testCobalt() {
+  const cobaltInstances = [
+    'https://api.cobalt.tools/',
+    'https://co.wuk.sh/',
+    'https://cobalt.qtf.tw/',
+  ];
+
+  const targetVideo = 'https://www.youtube.com/watch?v=-yzJsDPoReo';
+
+  for (const inst of cobaltInstances) {
+    try {
+      console.log('Testing Cobalt instance:', inst);
+      const res = await fetch(inst, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          url: targetVideo,
+          videoQuality: '1080',
+        }),
+      });
+
+      console.log('Status:', res.status);
+      if (res.ok) {
+        const data = await res.json();
+        console.log('Cobalt Response:', JSON.stringify(data, null, 2));
+        if (data.url) {
+          console.log('\n==================================================');
+          console.log('SUCCESS! Direct MP4 stream URL:', data.url);
+          console.log('==================================================');
+          return;
+        }
+      } else {
+        console.log('Res text:', await res.text());
+      }
+    } catch (e) {
+      console.error('Error testing Cobalt:', e.message);
+    }
   }
 }
 
-testCobaltV10();
+testCobalt();

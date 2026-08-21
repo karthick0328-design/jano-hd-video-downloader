@@ -186,7 +186,7 @@ export class ExactMediaExtractor {
           // Shuffle instances to balance load
           const shuffled = activeInstances.sort(() => 0.5 - Math.random());
           
-          for (const cobaltApi of shuffled.slice(0, 3)) {
+          for (const cobaltApi of shuffled.slice(0, 10)) {
             try {
               const res = await fetch(`${cobaltApi}`, {
                 method: 'POST',
@@ -222,24 +222,21 @@ export class ExactMediaExtractor {
     } catch(e) {
       console.log('[COBALT_TRACKER_ERROR]', e);
     }
-    // 0.5. Try native @distube/ytdl-core if installed (bypasses Render/RapidAPI completely)
+    // 0.5. Try OEmbed to get metadata and defer extraction to route.ts
     try {
-      // Dynamic import to prevent Edge runtime crashes if not fully compatible
-      const ytdl = require('@distube/ytdl-core');
-      const info = await ytdl.getInfo(url);
-      const format = ytdl.chooseFormat(info.formats, { filter: 'audioandvideo', quality: 'highest' }) || ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
-      
-      if (format && format.url) {
-        console.log(`[YTDL-CORE_SUCCESS] Extracted from local Vercel Node runtime: ${format.url}`);
+      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+      if (oembedRes.ok) {
+        const oembedData = await oembedRes.json();
+        console.log(`[OEMBED_SUCCESS] Deferred extraction for ${url}`);
         return {
-          mediaUrl: format.url,
-          title: info.videoDetails?.title || title,
-          thumbnail: info.videoDetails?.thumbnails?.[info.videoDetails.thumbnails.length - 1]?.url || thumbnail,
+          mediaUrl: url,
+          title: oembedData.title || title,
+          thumbnail: oembedData.thumbnail_url || thumbnail,
           mediaId: videoId,
         };
       }
     } catch (e: any) {
-      console.log('[YTDL-CORE_FAILED]', e.message);
+      console.log('[OEMBED_FAILED]', e.message);
     }
 
     if (videoId && apiKey) {

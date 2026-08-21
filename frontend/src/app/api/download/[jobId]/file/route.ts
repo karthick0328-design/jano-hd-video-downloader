@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { JobStoreService } from '@/lib/server/jobStore';
 import { generateSafeFilename } from '@/lib/server/blobStorage';
 import { get } from '@vercel/blob';
+import ytdl from '@distube/ytdl-core';
 
 export async function GET(
   req: NextRequest,
@@ -49,7 +50,73 @@ const resHeaders = new Headers(); resHeaders.set('Access-Control-Allow-Origin', 
     }
   }
 
-  if (mediaStreamUrl.includes('googlevideo.com') || mediaStreamUrl.includes('youtube.com')) {
+  if (mediaStreamUrl.includes('youtube.com') || mediaStreamUrl.includes('youtu.be')) {
+    try {
+      console.log(`[VERCEL_PROXY] Extracting and Proxying RAW YouTube URL natively: ${mediaStreamUrl}`);
+      const clientRange = req.headers.get('range');
+      const options: any = { filter: 'audioandvideo', quality: 'highest' };
+      
+      let start = 0;
+      let end: number | undefined = undefined;
+      let isPartial = false;
+      
+      if (clientRange) {
+        const match = clientRange.match(/bytes=(\d+)-(\d*)/);
+        if (match) {
+          start = parseInt(match[1], 10);
+          if (match[2]) end = parseInt(match[2], 10);
+          options.range = { start, end };
+          isPartial = true;
+        }
+      }
+
+      const info = await ytdl.getInfo(mediaStreamUrl);
+      const format = ytdl.chooseFormat(info.formats, options);
+      const contentLength = parseInt(format.contentLength || '0', 10);
+      
+      const ytStream = ytdl(mediaStreamUrl, options);
+      
+      const webStream = new ReadableStream({
+        start(controller) {
+          ytStream.on('data', (chunk: any) => controller.enqueue(chunk));
+          ytStream.on('end', () => controller.close());
+          ytStream.on('error', (err: any) => controller.error(err));
+        },
+        cancel() {
+          ytStream.destroy();
+        }
+      });
+
+      const resHeaders = new Headers();
+      resHeaders.set('Access-Control-Allow-Origin', '*');
+      resHeaders.set('Content-Type', 'video/mp4');
+      resHeaders.set('Content-Disposition', `attachment; filename="${filename}"`);
+      resHeaders.set('Accept-Ranges', 'bytes');
+      
+      if (contentLength) {
+         const finalEnd = end !== undefined ? end : contentLength - 1;
+         const length = finalEnd - start + 1;
+         resHeaders.set('Content-Length', length.toString());
+         if (isPartial) {
+           resHeaders.set('Content-Range', `bytes ${start}-${finalEnd}/${contentLength}`);
+         }
+      }
+
+      return new NextResponse(webStream, {
+        status: isPartial ? 206 : 200,
+        headers: resHeaders,
+      });
+    } catch (e: any) {
+      console.error('[YTDL-CORE_PROXY_ERROR]', e.message);
+      const accept = req.headers.get('accept') || '';
+      if (accept.includes('text/html')) {
+        return NextResponse.redirect(new URL('/?error=YouTube+is+currently+blocking+our+servers.+Please+try+again+later.', req.url));
+      }
+      return NextResponse.json({ success: false, error: 'Video stream expired or rate limited.' }, { status: 403, headers: { 'Access-Control-Allow-Origin': '*' } });
+    }
+  }
+
+  if (mediaStreamUrl.includes('googlevideo.com')) {
     try {
       const fetchHeaders: Record<string, string> = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -83,6 +150,11 @@ const resHeaders = new Headers(); resHeaders.set('Access-Control-Allow-Origin', 
         });
       } else {
         console.error(`[VERCEL_PROXY_ERROR] Standard fetch failed with status ${videoRes.status}`);
+        const accept = req.headers.get('accept') || '';
+        if (accept.includes('text/html')) {
+          return NextResponse.redirect(new URL('/?error=Video+stream+expired.+Please+extract+again.', req.url));
+        }
+        return NextResponse.json({ success: false, error: 'Video stream expired or rate limited.' }, { status: 403, headers: { 'Access-Control-Allow-Origin': '*' } });
       }
     } catch (e: any) {
       console.error('[VERCEL_PROXY_ERROR]', e.message);

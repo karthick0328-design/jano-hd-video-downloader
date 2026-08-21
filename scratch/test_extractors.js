@@ -1,49 +1,45 @@
-async function testMobileFB() {
-  try {
-    const res = await fetch(
-      'https://mbasic.facebook.com/video/video.php?v=10153231379946729',
-      {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-        },
-      }
-    );
-    console.log('Mobile FB status:', res.status);
-    const html = await res.text();
-    console.log('HTML len:', html.length);
-    const m =
-      html.match(/href="\/video_redirect\/\?src=([^"]+)"/i) ||
-      html.match(/src="([^"]+video[^"]+)"/i);
-    console.log(
-      'Video redirect src:',
-      m ? decodeURIComponent(m[1]).replace(/&amp;/g, '&') : 'none'
-    );
-  } catch (e) {
-    console.log('Err:', e.message);
-  }
-}
+async function testExtractors() {
+  const instagramUrl = 'https://www.instagram.com/reel/DavTm4AT7GK/';
+  const youtubeUrl = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 
-async function testShareChat() {
+  console.log('--- Testing Instagram Extraction ---');
+  // Test Cobalt API instance
   try {
-    const res = await fetch('https://sharechat.com/video/bXZAWRm', {
+    const res = await fetch('https://co.wuk.sh/api/json', {
+      method: 'POST',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0'
       },
+      body: JSON.stringify({ url: instagramUrl })
     });
-    console.log('ShareChat status:', res.status);
-    const html = await res.text();
-    console.log('ShareChat len:', html.length);
-    const m = html.match(/"videoUrl":"([^"]+)"/i) || html.match(/og:video"?\s+content="([^"]+)"/i);
-    console.log('ShareChat MP4:', m ? m[1].replace(/\\/g, '') : 'none');
-  } catch (e) {
-    console.log('ShareChat err:', e.message);
+    console.log('Cobalt IG status:', res.status);
+    const data = await res.json();
+    console.log('Cobalt IG data:', data);
+  } catch (err) {
+    console.log('Cobalt IG error:', err.message);
+  }
+
+  // Test Rapid / VKR / Invidious / Pub APIs
+  try {
+    const res = await fetch(`https://api.vkrdownloader.com/server?v=${encodeURIComponent(instagramUrl)}`);
+    console.log('VKR IG status:', res.status);
+    const data = await res.json();
+    console.log('VKR IG data keys:', Object.keys(data), data.data ? data.data.downloadUrl : null);
+  } catch (err) {
+    console.log('VKR IG error:', err.message);
+  }
+
+  console.log('\n--- Testing YouTube Extraction ---');
+  try {
+    const res = await fetch(`https://api.vkrdownloader.com/server?v=${encodeURIComponent(youtubeUrl)}`);
+    console.log('VKR YT status:', res.status);
+    const data = await res.json();
+    console.log('VKR YT data keys:', Object.keys(data), data.data ? data.data.downloadUrl : null);
+  } catch (err) {
+    console.log('VKR YT error:', err.message);
   }
 }
 
-async function main() {
-  await testMobileFB();
-  await testShareChat();
-}
-
-main();
+testExtractors();
