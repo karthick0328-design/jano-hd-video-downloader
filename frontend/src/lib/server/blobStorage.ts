@@ -110,33 +110,32 @@ export class BlobStorageService {
           if ((res.ok || res.status === 206) && res.body) {
             contentToUpload = res.body;
           } else {
-            console.error(`[STORAGE_FETCH_ERROR] Upstream fetch returned HTTP ${res.status}. Rejecting Blob upload to prevent saving corrupt error text.`);
-            return {
-              success: false,
-              error: `Upstream video provider blocked access (HTTP ${res.status}). Please try again.`,
-            };
+            console.error(`[STORAGE_FETCH_ERROR] Upstream fetch returned HTTP ${res.status}. Falling back to direct stream URL bypass.`);
+            contentToUpload = null; // Signal to skip blob upload
           }
         }
 
         let blob: any;
-        try {
-          blob = await put(`jobs/${jobId}/${filename}`, contentToUpload, {
-            access: 'public',
-            contentType: 'video/mp4',
-            token: blobToken,
-          });
-        } catch (pubErr: any) {
-          console.warn('[STORAGE] Public access put failed, trying private store access:', pubErr.message);
-          blob = await put(`jobs/${jobId}/${filename}`, contentToUpload, {
-            access: 'private',
-            contentType: 'video/mp4',
-            token: blobToken,
-          });
+        if (contentToUpload) {
+          try {
+            blob = await put(`jobs/${jobId}/${filename}`, contentToUpload, {
+              access: 'public',
+              contentType: 'video/mp4',
+              token: blobToken,
+            });
+          } catch (pubErr: any) {
+            console.warn('[STORAGE] Public access put failed, trying private store access:', pubErr.message);
+            blob = await put(`jobs/${jobId}/${filename}`, contentToUpload, {
+              access: 'private',
+              contentType: 'video/mp4',
+              token: blobToken,
+            });
+          }
         }
 
         const targetBlobUrl = blob?.downloadUrl || blob?.url;
 
-        if (blob && targetBlobUrl) {
+        if (targetBlobUrl) {
           // Perform explicit storage existence & readability verification
           const verification = await this.verifyStorageObject(targetBlobUrl);
           if (verification.verified) {
