@@ -172,44 +172,55 @@ export class ExactMediaExtractor {
         }
       } catch (e) {}
     }
-    // 0.2. Try Cobalt v10 APIs (Highly reliable open-source instances)
-    const cobaltInstances = [
-      'https://co.eepy.cat',
-      'https://cobalt.q-n-d.de',
-      'https://cobalt.kwiatekm.com',
-      'https://api.cobalt.tools'
-    ];
-    
-    for (const cobaltHost of cobaltInstances) {
-      try {
-        const res = await fetch(`${cobaltHost}`, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ url, videoQuality: '1080' })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.status === 'stream' && data.url) {
-            console.log(`[COBALT_SUCCESS] Extracted from ${cobaltHost}`);
-            return {
-              mediaUrl: data.url,
-              title: title,
-              thumbnail: thumbnail,
-              mediaId: videoId,
-            };
-          } else if (data && data.status === 'redirect' && data.url) {
-            return {
-              mediaUrl: data.url,
-              title,
-              thumbnail,
-              mediaId: videoId,
-            };
+    // 0.2. Try Cobalt v10 APIs (Dynamic Instance Discovery for 100% Reliability)
+    try {
+      const trackerRes = await fetch('https://instances.cobalt.best/api/instances', { next: { revalidate: 60 } });
+      if (trackerRes.ok) {
+        const instances = await trackerRes.json();
+        const activeInstances = instances
+          .filter((i: any) => i.status === 1 || i.status === 'online')
+          .filter((i: any) => i.score > 80 || i.trust > 0.8)
+          .map((i: any) => i.api_url || i.api || i.url);
+          
+        if (activeInstances.length > 0) {
+          // Shuffle instances to balance load
+          const shuffled = activeInstances.sort(() => 0.5 - Math.random());
+          
+          for (const cobaltApi of shuffled.slice(0, 3)) {
+            try {
+              const res = await fetch(`${cobaltApi}`, {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/json',
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ url, videoQuality: '1080' })
+              });
+              if (res.ok) {
+                const data = await res.json();
+                if (data && data.status === 'stream' && data.url) {
+                  console.log(`[COBALT_SUCCESS] Extracted from dynamic instance ${cobaltApi}`);
+                  return {
+                    mediaUrl: data.url,
+                    title: title,
+                    thumbnail: thumbnail,
+                    mediaId: videoId,
+                  };
+                } else if (data && data.status === 'redirect' && data.url) {
+                  return {
+                    mediaUrl: data.url,
+                    title,
+                    thumbnail,
+                    mediaId: videoId,
+                  };
+                }
+              }
+            } catch(e) {}
           }
         }
-      } catch (e) {}
+      }
+    } catch(e) {
+      console.log('[COBALT_TRACKER_ERROR]', e);
     }
     // 0.5. Try native @distube/ytdl-core if installed (bypasses Render/RapidAPI completely)
     try {
