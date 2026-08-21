@@ -144,6 +144,35 @@ export class ExactMediaExtractor {
       process.env.RAPIDAPI_KEY ||
       process.env.NEXT_PUBLIC_RAPIDAPI_KEY ||
       '6f0057a12amsha2c1a42a9448dacp1e4d5ajsn192cfef93384';
+
+    // 0. Try Free Public APIs first
+    const freeApis = [
+      `https://api.davidcyriltech.my.id/download/ytmp4?url=${url}`,
+      `https://bk9.fun/download/ytmp4?url=${url}`,
+      `https://api.ryzendesu.vip/api/downloader/ytmp4?url=${url}`,
+      `https://widipe.com/download/ytdl?url=${url}`
+    ];
+    
+    for (const apiUrl of freeApis) {
+      try {
+        const res = await fetch(apiUrl, { headers: { 'User-Agent': 'Mozilla/5.0' }, next: { revalidate: 0 } });
+        if (res.ok) {
+          const data = await res.json();
+          // APIs usually return data.result.url or data.url or data.result.download.url
+          const downloadUrl = data?.result?.url || data?.result?.video || data?.result?.download?.url || data?.url;
+          if (downloadUrl && downloadUrl.startsWith('http')) {
+            console.log(`[FREE_API_SUCCESS] Extracted from ${apiUrl}`);
+            return {
+              mediaUrl: downloadUrl,
+              title: data?.result?.title || title,
+              thumbnail: data?.result?.thumbnail || thumbnail,
+              mediaId: videoId,
+            };
+          }
+        }
+      } catch (e) {}
+    }
+
     if (videoId && apiKey) {
       // 1. Try yt-api (RapidAPI) - Active & Verified 200 OK
       try {

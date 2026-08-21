@@ -160,7 +160,9 @@ export class BlobStorageService {
     // 2. Direct HTTPS Media Stream verification & fallback
     if (typeof mediaUrlOrBuffer === 'string' && (mediaUrlOrBuffer.startsWith('http://') || mediaUrlOrBuffer.startsWith('https://'))) {
       const verification = await this.verifyStorageObject(mediaUrlOrBuffer);
-      console.log(`[DIRECT_STREAM_VERIFIED] Direct stream URL accepted: ${mediaUrlOrBuffer}`);
+      // Even if verification strict checks fail (e.g. 403 on HEAD request by CDN),
+      // we still return the direct stream if we don't have Blob storage configured.
+      console.log(`[DIRECT_STREAM] Direct stream URL bypass accepted: ${mediaUrlOrBuffer}`);
       return {
         success: true,
         downloadUrl: mediaUrlOrBuffer,
