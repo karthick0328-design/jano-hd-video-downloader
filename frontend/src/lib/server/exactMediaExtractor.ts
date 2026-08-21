@@ -322,6 +322,8 @@ export class ExactMediaExtractor {
 
     if (videoId) {
       const instances = [
+        `https://inv.nadeko.net/api/v1/videos/${videoId}`,
+        `https://yt.chocolatemoo53.com/api/v1/videos/${videoId}`,
         `https://inv.tux.pizza/api/v1/videos/${videoId}`,
         `https://invidious.projectsegfau.lt/api/v1/videos/${videoId}`,
         `https://invidious.privacydev.net/api/v1/videos/${videoId}`,
