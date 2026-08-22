@@ -54,7 +54,18 @@ const resHeaders = new Headers(); resHeaders.set('Access-Control-Allow-Origin', 
     try {
       console.log(`[VERCEL_PROXY] Extracting and Proxying RAW YouTube URL natively: ${mediaStreamUrl}`);
       const clientRange = req.headers.get('range');
-      const options: any = { filter: 'audioandvideo', quality: 'highest' };
+      const options: any = { 
+        filter: 'audioandvideo', 
+        quality: 'highest',
+        requestOptions: {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Sec-Fetch-Mode': 'navigate'
+          }
+        }
+      };
       
       let start = 0;
       let end: number | undefined = undefined;

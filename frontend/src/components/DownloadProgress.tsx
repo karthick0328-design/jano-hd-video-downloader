@@ -56,7 +56,11 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
         const headRes = await fetch(targetUrl, { method: 'GET', headers: { Range: 'bytes=0-10' } });
         const contentType = headRes.headers.get('content-type') || '';
         
-        if (!headRes.ok || contentType.includes('application/json') || contentType.includes('text/html')) {
+        if (!headRes.ok) {
+          if (headRes.status === 403) throw new Error('YTDL_RATE_LIMITED');
+          throw new Error('Fallback');
+        }
+        if (contentType.includes('application/json') || contentType.includes('text/html')) {
           throw new Error('Fallback');
         }
 
@@ -77,7 +81,10 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
           while (downloaded < totalSize) {
             const end = Math.min(downloaded + CHUNK_SIZE - 1, totalSize - 1);
             const chunkRes = await fetch(targetUrl, { headers: { Range: `bytes=${downloaded}-${end}` } });
-            if (!chunkRes.ok) throw new Error('Fallback');
+            if (!chunkRes.ok) {
+              if (chunkRes.status === 403) throw new Error('YTDL_RATE_LIMITED');
+              throw new Error('Fallback');
+            }
             const buffer = await chunkRes.arrayBuffer();
             chunks.push(new Uint8Array(buffer));
             downloaded += buffer.byteLength;
@@ -94,7 +101,12 @@ export function DownloadProgress({ job, onReset }: DownloadProgressProps) {
           setDownloading(false);
           return;
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e.message === 'YTDL_RATE_LIMITED') {
+          setDownloadError('YouTube is blocking our servers. Please try again later.');
+          setDownloading(false);
+          return;
+        }
         console.log('[FRONTEND_DOWNLOAD_TRIGGER] Chunking failed (CORS or small file), falling back to direct navigation.');
       }
 
