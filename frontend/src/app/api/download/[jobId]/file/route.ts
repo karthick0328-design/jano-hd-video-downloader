@@ -128,6 +128,18 @@ const resHeaders = new Headers(); resHeaders.set('Access-Control-Allow-Origin', 
   }
 
   if (mediaStreamUrl.includes('googlevideo.com')) {
+    const microserviceUrl = process.env.YOUTUBE_MICROSERVICE_URL;
+    if (microserviceUrl) {
+       console.log(`[VERCEL_PROXY] Forwarding googlevideo stream to Python microservice proxy...`);
+       const proxyUrl = `${microserviceUrl.replace(/\/$/, '')}/proxy?url=${encodeURIComponent(mediaStreamUrl)}`;
+       return NextResponse.redirect(proxyUrl, {
+         headers: {
+           'Access-Control-Allow-Origin': '*',
+           'Access-Control-Allow-Methods': 'GET, OPTIONS',
+         }
+       });
+    }
+
     try {
       const fetchHeaders: Record<string, string> = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
