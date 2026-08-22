@@ -222,22 +222,7 @@ export class ExactMediaExtractor {
     } catch(e) {
       console.log('[COBALT_TRACKER_ERROR]', e);
     }
-    // 0.5. Try OEmbed to get metadata and defer extraction to route.ts
-    try {
-      const oembedRes = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-      if (oembedRes.ok) {
-        const oembedData = await oembedRes.json();
-        console.log(`[OEMBED_SUCCESS] Deferred extraction for ${url}`);
-        return {
-          mediaUrl: url,
-          title: oembedData.title || title,
-          thumbnail: oembedData.thumbnail_url || thumbnail,
-          mediaId: videoId,
-        };
-      }
-    } catch (e: any) {
-      console.log('[OEMBED_FAILED]', e.message);
-    }
+
 
     if (videoId && apiKey) {
       // 1. Try yt-api (RapidAPI) - Active & Verified 200 OK
